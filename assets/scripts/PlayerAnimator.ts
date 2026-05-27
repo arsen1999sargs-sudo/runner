@@ -1,4 +1,4 @@
-import { _decorator, Component, Sprite, SpriteFrame, Texture2D, Rect, Vec2, resources, assetManager, ImageAsset } from 'cc';
+import { _decorator, Component, Sprite, SpriteFrame, Texture2D, Rect, CCInteger, CCFloat } from 'cc';
 import { GameManager, GameState } from './GameManager';
 const { ccclass, property } = _decorator;
 
@@ -8,19 +8,19 @@ export class PlayerAnimator extends Component {
     @property(SpriteFrame)
     sourceFrame: SpriteFrame = null!;
 
-    @property
+    @property(CCInteger)
     cols: number = 5;
 
-    @property
+    @property(CCInteger)
     rows: number = 6;
 
-    @property
+    @property(CCFloat)
     fps: number = 12;
 
-    @property([Number])
+    @property({ type: [CCInteger] })
     runFrameIndexes: number[] = [0, 1, 2, 3, 4];
 
-    @property
+    @property(CCInteger)
     idleFrameIndex: number = 5;
 
     private sprite: Sprite | null = null;
