@@ -91,7 +91,10 @@ export class GameManager extends Component {
 
     private updateEarningsUI() {
         if (this.earningsLabel) {
-            this.earningsLabel.string = `$${this.earnings.toFixed(2)}`;
+            // Целые числа без .00, дроби с точностью 2
+            const v = this.earnings;
+            const isWhole = Math.floor(v) === v;
+            this.earningsLabel.string = `$${isWhole ? v.toFixed(0) : v.toFixed(2)}`;
         }
     }
 
