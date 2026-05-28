@@ -2,6 +2,7 @@ import { _decorator, Component, Node, CCFloat, Color, Sprite, SpriteFrame, UITra
 import { GameManager, GameState } from './GameManager';
 import { Pickup, PickupKind } from './Pickup';
 import { RoundedRect } from './RoundedRect';
+import { PulseScale } from './PulseScale';
 const { ccclass, property } = _decorator;
 
 /**
@@ -15,8 +16,8 @@ export class Spawner extends Component {
     @property(Node)
     player: Node = null!;
 
-    @property(SpriteFrame)
-    coinFrame: SpriteFrame = null!;
+    @property({ type: [SpriteFrame], tooltip: 'Список собираемых (PayPal, купюра $) — выбирается случайно' })
+    coinFrames: SpriteFrame[] = [];
 
     @property(SpriteFrame)
     obstacleFrame: SpriteFrame = null!;
@@ -44,6 +45,9 @@ export class Spawner extends Component {
 
     @property({ type: CCFloat, tooltip: 'Высота монеты над землёй' })
     coinHeight: number = 120;
+
+    @property({ type: CCFloat, tooltip: 'Высота собираемого (ширина считается по пропорции картинки)' })
+    coinDisplayHeight: number = 40;
 
     @property({ tooltip: 'Текст над барьером (пусто = без текста)' })
     obstacleLabel: string = 'EVADE';
@@ -88,13 +92,26 @@ export class Spawner extends Component {
 
     // ---- Обводка текста ----
     @property({ group: { name: 'Бейдж EVADE' }, tooltip: 'Цвет обводки текста (hex без #)' })
-    textOutlineColorHex: string = 'FFFFFF';
+    textOutlineColorHex: string = '000000';
 
-    @property({ group: { name: 'Бейдж EVADE' }, type: CCFloat, tooltip: 'Толщина внешней (белой) обводки текста' })
-    textOutlineWidth: number = 4;
+    @property({ group: { name: 'Бейдж EVADE' }, type: CCFloat, tooltip: 'Толщина внешней обводки текста' })
+    textOutlineWidth: number = 6;
 
     @property({ group: { name: 'Бейдж EVADE' }, type: CCFloat, tooltip: 'Жирность текста (красная обводка поверх, утолщает буквы)' })
     textBoldWidth: number = 4;
+
+    // ---- Пульсация бейджа (уменьшается/растёт) ----
+    @property({ group: { name: 'Бейдж EVADE' }, tooltip: 'Пульсация бейджа (туда-сюда)' })
+    badgePulse: boolean = true;
+
+    @property({ group: { name: 'Бейдж EVADE' }, type: CCFloat, tooltip: 'Мин. масштаб' })
+    pulseMin: number = 0.85;
+
+    @property({ group: { name: 'Бейдж EVADE' }, type: CCFloat, tooltip: 'Макс. масштаб' })
+    pulseMax: number = 1.15;
+
+    @property({ group: { name: 'Бейдж EVADE' }, type: CCFloat, tooltip: 'Скорость пульсации' })
+    pulseSpeed: number = 2;
 
     private timer: number = 0;
 
@@ -115,17 +132,28 @@ export class Spawner extends Component {
         const sprite = new Node(isObstacle ? 'Obstacle' : 'Coin');
         sprite.layer = this.node.layer;
 
+        // для монеты выбираем случайную картинку из списка (PayPal / купюра)
+        let coinFrame: SpriteFrame | null = null;
+        if (!isObstacle && this.coinFrames.length > 0) {
+            coinFrame = this.coinFrames[Math.floor(Math.random() * this.coinFrames.length)];
+        }
+
         const ui = sprite.addComponent(UITransform);
-        if (isObstacle) ui.setContentSize(this.obstacleSizeW, this.obstacleSizeH);
-        else ui.setContentSize(55, 55);
 
         const sp = sprite.addComponent(Sprite);
+        sp.spriteFrame = isObstacle ? this.obstacleFrame : coinFrame;
+        sp.sizeMode = Sprite.SizeMode.CUSTOM;   // ВАЖНО: иначе размер берётся из картинки
+        sp.color = new Color(255, 255, 255, 255);
+
+        // задаём размер ПОСЛЕ CUSTOM, чтобы он применился
         if (isObstacle) {
-            sp.spriteFrame = this.obstacleFrame;
-            sp.color = new Color(255, 255, 255, 255);
+            ui.setContentSize(this.obstacleSizeW, this.obstacleSizeH);
+        } else if (coinFrame) {
+            // размер по высоте, ширина по пропорции картинки
+            const aspect = coinFrame.rect.width / coinFrame.rect.height;
+            ui.setContentSize(this.coinDisplayHeight * aspect, this.coinDisplayHeight);
         } else {
-            sp.spriteFrame = this.coinFrame;
-            sp.color = new Color(255, 200, 40, 255);
+            ui.setContentSize(60, 60);
         }
 
         const pickup = sprite.addComponent(Pickup);
@@ -176,6 +204,14 @@ export class Spawner extends Component {
         }
         // СЛОЙ 2 (поверх): красный текст + красная обводка = утолщает буквы (жирнее)
         this.addTextLayer(badge, this.textColorHex, this.textColorHex, this.textBoldWidth);
+
+        // пульсация (уменьшается/растёт)
+        if (this.badgePulse) {
+            const pulse = badge.addComponent(PulseScale);
+            pulse.minScale = this.pulseMin;
+            pulse.maxScale = this.pulseMax;
+            pulse.speed = this.pulseSpeed;
+        }
 
         parent.addChild(badge);
         badge.setPosition(new Vec3(this.labelOffsetX, this.labelOffsetY, 0));

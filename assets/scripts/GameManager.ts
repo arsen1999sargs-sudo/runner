@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Label, Sprite, director } from 'cc';
+import { _decorator, Component, Node, Label, Sprite, director, Color } from 'cc';
 const { ccclass, property } = _decorator;
 
 export enum GameState {
@@ -85,7 +85,16 @@ export class GameManager extends Component {
         if (!this.heartsContainer) return;
         const hearts = this.heartsContainer.children;
         hearts.forEach((heart, i) => {
-            heart.active = i < this.lives;
+            heart.active = true; // сердечко всегда видно
+            const sprite = heart.getComponent(Sprite);
+            if (!sprite) return;
+            if (i < this.lives) {
+                // живое — нормальный цвет
+                sprite.color = new Color(255, 255, 255, 255);
+            } else {
+                // потерянное — приглушённое/в тени (тёмный оттенок, но сердце видно)
+                sprite.color = new Color(110, 100, 95, 235);
+            }
         });
     }
 
