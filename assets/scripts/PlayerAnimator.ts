@@ -1,4 +1,4 @@
-import { _decorator, Component, Sprite, SpriteFrame, Texture2D, Rect, CCInteger, CCFloat } from 'cc';
+import { _decorator, Component, Sprite, SpriteFrame, Texture2D, Rect, CCInteger, CCFloat, Size } from 'cc';
 import { GameManager, GameState } from './GameManager';
 const { ccclass, property } = _decorator;
 
@@ -30,18 +30,33 @@ export class PlayerAnimator extends Component {
     private playing: boolean = false;
     private activeSeq: number[] = [];
 
-    onLoad() {
+    start() {
         this.sprite = this.getComponent(Sprite);
+        // Если Source Frame не задан в инспекторе — берём картинку из самого Sprite
+        if (!this.sourceFrame && this.sprite && this.sprite.spriteFrame) {
+            this.sourceFrame = this.sprite.spriteFrame;
+        }
         this.buildFrames();
         this.showIdle();
     }
 
     private buildFrames() {
-        if (!this.sourceFrame || !this.sprite) return;
+        if (!this.sprite) {
+            console.warn('[PlayerAnimator] cc.Sprite НЕ найден на узле Player');
+            return;
+        }
+        if (!this.sourceFrame) {
+            console.warn('[PlayerAnimator] sourceFrame пустой И в Sprite нет spriteFrame');
+            return;
+        }
 
         const tex = this.sourceFrame.texture as Texture2D;
-        const sheetW = this.sourceFrame.rect.width;
-        const sheetH = this.sourceFrame.rect.height;
+        // используем РЕАЛЬНЫЙ размер исходного rect (с учётом trim)
+        const baseRect = this.sourceFrame.rect;
+        const sheetW = baseRect.width;
+        const sheetH = baseRect.height;
+        const originX = baseRect.x;
+        const originY = baseRect.y;
         const frameW = sheetW / this.cols;
         const frameH = sheetH / this.rows;
 
@@ -50,15 +65,16 @@ export class PlayerAnimator extends Component {
                 const sf = new SpriteFrame();
                 sf.texture = tex;
                 sf.rect = new Rect(
-                    col * frameW,
-                    row * frameH,
+                    originX + col * frameW,
+                    originY + row * frameH,
                     frameW,
                     frameH
                 );
-                sf.pixelsToUnit = this.sourceFrame.pixelsToUnit;
+                sf.originalSize = new Size(frameW, frameH);
                 this.frames.push(sf);
             }
         }
+        console.log(`[PlayerAnimator] разрезано кадров: ${this.frames.length}`);
     }
 
     showIdle() {
