@@ -23,6 +23,9 @@ export class PlayerAnimator extends Component {
     @property(CCInteger)
     idleFrameIndex: number = 5;
 
+    @property({ type: CCFloat, tooltip: 'Отступ в пикселях для обрезки краёв каждого кадра (убирает затекание соседних кадров)' })
+    inset: number = 4;
+
     private sprite: Sprite | null = null;
     private frames: SpriteFrame[] = [];
     private elapsed: number = 0;
@@ -60,21 +63,22 @@ export class PlayerAnimator extends Component {
         const frameW = sheetW / this.cols;
         const frameH = sheetH / this.rows;
 
+        const ins = this.inset;
         for (let row = 0; row < this.rows; row++) {
             for (let col = 0; col < this.cols; col++) {
                 const sf = new SpriteFrame();
                 sf.texture = tex;
                 sf.rect = new Rect(
-                    originX + col * frameW,
-                    originY + row * frameH,
-                    frameW,
-                    frameH
+                    originX + col * frameW + ins,
+                    originY + row * frameH + ins,
+                    frameW - ins * 2,
+                    frameH - ins * 2
                 );
-                sf.originalSize = new Size(frameW, frameH);
+                sf.originalSize = new Size(frameW - ins * 2, frameH - ins * 2);
                 this.frames.push(sf);
             }
         }
-        console.log(`[PlayerAnimator] разрезано кадров: ${this.frames.length}`);
+        console.log(`[PlayerAnimator] разрезано кадров: ${this.frames.length}, inset=${ins}`);
     }
 
     showIdle() {
