@@ -1,14 +1,14 @@
-import { _decorator, Component, Node, Prefab, instantiate, CCFloat, CCInteger, Color, Sprite, SpriteFrame, UITransform, Vec3 } from 'cc';
+import { _decorator, Component, Node, CCFloat, CCInteger, Color, Sprite, SpriteFrame, UITransform, Vec3 } from 'cc';
 import { GameManager, GameState } from './GameManager';
 import { Pickup, PickupKind } from './Pickup';
 const { ccclass, property } = _decorator;
 
 /**
- * Спавнит препятствия (красные) и монеты (жёлтые) на 3 полосах,
- * двигает их вниз с помощью Pickup-компонента.
+ * Спавнит препятствия (красные) и монеты (жёлтые) по дорожке игрока,
+ * двигает их вниз с помощью Pickup. Игрок перепрыгивает препятствия.
  *
- * Для простоты не использует Prefab — генерирует спрайты программно
- * из default_sprite_splash + цвета.
+ * - Препятствия — низкие, на уровне земли (надо перепрыгнуть).
+ * - Монеты — чуть выше, собираются на бегу или в прыжке.
  */
 @ccclass('Spawner')
 export class Spawner extends Component {
@@ -23,22 +23,19 @@ export class Spawner extends Component {
     obstacleFrame: SpriteFrame = null!;
 
     @property(CCFloat)
-    spawnInterval: number = 0.9;
+    spawnInterval: number = 1.1;
 
     @property(CCFloat)
     speed: number = 450;
 
     @property(CCFloat)
-    spawnY: number = 700;
+    spawnY: number = 720;
+
+    @property({ type: CCFloat, tooltip: 'Разброс по X вокруг дорожки игрока' })
+    xJitter: number = 0;
 
     @property(CCFloat)
-    laneWidth: number = 140;
-
-    @property(CCInteger)
-    lanes: number = 3;
-
-    @property(CCFloat)
-    obstacleChance: number = 0.35;
+    obstacleChance: number = 0.45;
 
     private timer: number = 0;
 
@@ -54,9 +51,9 @@ export class Spawner extends Component {
     }
 
     private spawnOne() {
-        const lane = Math.floor(Math.random() * this.lanes);
-        const centerOffset = (this.lanes - 1) / 2;
-        const x = (lane - centerOffset) * this.laneWidth;
+        // путь игрока (его X), с опциональным разбросом
+        const px = this.player ? this.player.position.x : 0;
+        const x = px + (this.xJitter > 0 ? (Math.random() * 2 - 1) * this.xJitter : 0);
 
         const isObstacle = Math.random() < this.obstacleChance;
 
@@ -64,7 +61,7 @@ export class Spawner extends Component {
         sprite.layer = this.node.layer;
 
         const ui = sprite.addComponent(UITransform);
-        ui.setContentSize(60, 60);
+        ui.setContentSize(isObstacle ? 70 : 55, isObstacle ? 70 : 55);
 
         const sp = sprite.addComponent(Sprite);
         if (isObstacle) {
@@ -72,7 +69,7 @@ export class Spawner extends Component {
             sp.color = new Color(220, 60, 60, 255);
         } else {
             sp.spriteFrame = this.coinFrame;
-            sp.color = new Color(255, 210, 60, 255);
+            sp.color = new Color(255, 200, 40, 255);
         }
 
         const pickup = sprite.addComponent(Pickup);
