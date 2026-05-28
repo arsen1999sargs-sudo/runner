@@ -46,8 +46,14 @@ export class Spawner extends Component {
     @property({ type: CCFloat, tooltip: 'Высота монеты над землёй' })
     coinHeight: number = 120;
 
-    @property({ type: CCFloat, tooltip: 'Высота собираемого (ширина считается по пропорции картинки)' })
+    @property({ type: CCFloat, tooltip: 'Высота собираемого по умолчанию (ширина по пропорции)' })
     coinDisplayHeight: number = 40;
+
+    @property({ type: [CCFloat], tooltip: 'Высота для КАЖДОГО элемента Coin Frames (по индексу). Пусто = coinDisplayHeight' })
+    coinHeights: number[] = [];
+
+    @property({ type: [CCFloat], tooltip: 'Сколько $ даёт КАЖДЫЙ элемент Coin Frames (по индексу). Пусто = 0.5' })
+    coinValues: number[] = [];
 
     @property({ tooltip: 'Текст над барьером (пусто = без текста)' })
     obstacleLabel: string = 'EVADE';
@@ -134,8 +140,10 @@ export class Spawner extends Component {
 
         // для монеты выбираем случайную картинку из списка (PayPal / купюра)
         let coinFrame: SpriteFrame | null = null;
+        let coinIdx = -1;
         if (!isObstacle && this.coinFrames.length > 0) {
-            coinFrame = this.coinFrames[Math.floor(Math.random() * this.coinFrames.length)];
+            coinIdx = Math.floor(Math.random() * this.coinFrames.length);
+            coinFrame = this.coinFrames[coinIdx];
         }
 
         const ui = sprite.addComponent(UITransform);
@@ -149,16 +157,26 @@ export class Spawner extends Component {
         if (isObstacle) {
             ui.setContentSize(this.obstacleSizeW, this.obstacleSizeH);
         } else if (coinFrame) {
-            // размер по высоте, ширина по пропорции картинки
+            // высота: своя для каждого элемента (coinHeights[idx]) или общая
+            let h = this.coinDisplayHeight;
+            if (coinIdx >= 0 && coinIdx < this.coinHeights.length && this.coinHeights[coinIdx] > 0) {
+                h = this.coinHeights[coinIdx];
+            }
             const aspect = coinFrame.rect.width / coinFrame.rect.height;
-            ui.setContentSize(this.coinDisplayHeight * aspect, this.coinDisplayHeight);
+            ui.setContentSize(h * aspect, h);
         } else {
             ui.setContentSize(60, 60);
         }
 
+        // значение монеты: своё для каждого элемента (coinValues[idx]) или 0.5
+        let coinValue = 0.5;
+        if (coinIdx >= 0 && coinIdx < this.coinValues.length && this.coinValues[coinIdx] > 0) {
+            coinValue = this.coinValues[coinIdx];
+        }
+
         const pickup = sprite.addComponent(Pickup);
         pickup.kind = isObstacle ? PickupKind.OBSTACLE : PickupKind.COIN;
-        pickup.value = isObstacle ? 0 : 0.5;
+        pickup.value = isObstacle ? 0 : coinValue;
         pickup.speed = this.speed;
         pickup.player = this.player;
 

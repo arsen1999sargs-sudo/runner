@@ -3727,10 +3727,16 @@
     "player": {
       "__id__": 94
     },
-    "coinFrame": {
-      "__uuid__": "7d8f9b89-4fd1-4c9f-a3ab-38ec7cded7ca@f9941",
-      "__expectedType__": "cc.SpriteFrame"
-    },
+    "coinFrames": [
+      {
+        "__uuid__": "da3efc9e-564d-4d5f-aa4c-c204049eab4b@f9941",
+        "__expectedType__": "cc.SpriteFrame"
+      },
+      {
+        "__uuid__": "ea9cf031-fcbc-4f7f-a904-56d6b2466f5c@f9941",
+        "__expectedType__": "cc.SpriteFrame"
+      }
+    ],
     "obstacleFrame": {
       "__uuid__": "1f2fd7d9-e747-4a3b-927e-ac146157c003@f9941",
       "__expectedType__": "cc.SpriteFrame"
@@ -3738,11 +3744,40 @@
     "spawnInterval": 1.3,
     "speed": 450,
     "spawnX": 450,
-    "groundY": -180,
+    "groundY": -340,
+    "obstacleSizeH": 90,
+    "obstacleSizeW": 75,
     "obstacleChance": 0.45,
-    "coinHeight": 90,
+    "coinHeight": 120,
+    "coinDisplayHeight": 80,
+    "coinHeights": [],
+    "coinValues": [
+      17,
+      20
+    ],
     "obstacleLabel": "EVADE",
-    "labelFont": null,
+    "labelOffsetX": 0,
+    "labelOffsetY": 130,
+    "labelFont": {
+      "__uuid__": "e420d2ca-6e60-414c-8627-c5f2297f3b06",
+      "__expectedType__": "cc.TTFFont"
+    },
+    "badgeColorHex": "#fee50b",
+    "textColorHex": "fc0000",
+    "labelFontSize": 30,
+    "badgeWidth": 185,
+    "badgeHeight": 64,
+    "badgeRadius": 18,
+    "labelBold": false,
+    "badgeStrokeColorHex": "#ffcc00",
+    "badgeStrokeWidth": 6,
+    "textOutlineColorHex": "#030300",
+    "textOutlineWidth": 3,
+    "textBoldWidth": 2,
+    "badgePulse": true,
+    "pulseMin": 0.9,
+    "pulseMax": 1.1,
+    "pulseSpeed": 0.9,
     "_id": "b2A1FBiLNJr7cA9fZfdAQ+"
   },
   {
@@ -4423,7 +4458,7 @@
     "__prefab": null,
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 150,
+      "width": 160,
       "height": 80
     },
     "_anchorPoint": {
@@ -4493,7 +4528,7 @@
     "_prefab": null,
     "_lpos": {
       "__type__": "cc.Vec3",
-      "x": 33.666,
+      "x": 28.823,
       "y": 0,
       "z": 0
     },
@@ -4532,8 +4567,8 @@
     "__prefab": null,
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 44.4921875,
-      "height": 50.4
+      "width": 38.9306640625,
+      "height": 44.1
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -4565,10 +4600,10 @@
     "_string": "$0",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
-    "_actualFontSize": 40,
-    "_fontSize": 40,
+    "_actualFontSize": 35,
+    "_fontSize": 35,
     "_fontFamily": "Arial",
-    "_lineHeight": 40,
+    "_lineHeight": 35,
     "_overflow": 0,
     "_enableWrapText": true,
     "_font": null,
