@@ -9,9 +9,9 @@ export enum PickupKind {
 }
 
 /**
- * Монета или препятствие, летящее вниз к игроку.
- * - Препятствие: бьёт, если игрок на земле; если перепрыгнул (jumpHeight > порога) — пролетает.
- * - Монета: собирается при касании (можно и в прыжке).
+ * Монета или препятствие, летящее СПРАВА НАЛЕВО к игроку (side-scroller).
+ * - Препятствие: бьёт, если игрок на земле; если перепрыгнул — пролетает.
+ * - Монета: собирается при касании.
  */
 @ccclass('Pickup')
 export class Pickup extends Component {
@@ -28,14 +28,14 @@ export class Pickup extends Component {
     @property(CCFloat)
     radius: number = 60;
 
-    @property({ type: CCFloat, tooltip: 'Какую высоту прыжка надо набрать чтобы перепрыгнуть препятствие' })
+    @property({ type: CCFloat, tooltip: 'Высота прыжка чтобы перепрыгнуть препятствие' })
     jumpClearHeight: number = 70;
 
     @property(Node)
     player: Node = null!;
 
     private hitOnce: boolean = false;
-    private despawnY: number = -800;
+    private despawnX: number = -500;
     private playerComp: Player | null = null;
 
     start() {
@@ -48,10 +48,11 @@ export class Pickup extends Component {
         const gm = GameManager.instance;
         if (!gm || gm.getState() !== GameState.RUNNING) return;
 
+        // движение справа налево
         const p = this.node.position;
-        this.node.setPosition(p.x, p.y - this.speed * dt, p.z);
+        this.node.setPosition(p.x - this.speed * dt, p.y, p.z);
 
-        if (this.node.position.y < this.despawnY) {
+        if (this.node.position.x < this.despawnX) {
             this.node.destroy();
             return;
         }
@@ -64,12 +65,11 @@ export class Pickup extends Component {
         const dy = wp.y - pp.y;
 
         if (this.kind === PickupKind.OBSTACLE) {
-            // зона удара по вертикали (когда препятствие проходит уровень игрока)
-            if (Math.abs(dx) < this.radius && Math.abs(dy) < this.radius) {
+            // препятствие поравнялось с игроком по X
+            if (Math.abs(dx) < this.radius) {
                 const jumpH = this.playerComp ? this.playerComp.getJumpHeight() : 0;
                 if (jumpH >= this.jumpClearHeight) {
-                    // перепрыгнул — безопасно, помечаем чтобы не било повторно
-                    this.hitOnce = true;
+                    this.hitOnce = true; // перепрыгнул — безопасно
                 } else {
                     this.onHitObstacle(gm);
                 }
