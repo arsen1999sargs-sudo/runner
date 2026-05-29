@@ -55,6 +55,9 @@ export class Spawner extends Component {
     @property({ type: [CCFloat], tooltip: 'Сколько $ даёт КАЖДЫЙ элемент Coin Frames (по индексу). Пусто = 0.5' })
     coinValues: number[] = [];
 
+    @property({ type: CCFloat, tooltip: 'Радиус сбора монеты (больше = легче собрать; не влияет на препятствия)' })
+    coinPickRadius: number = 100;
+
     @property({ tooltip: 'Текст над барьером (пусто = без текста)' })
     obstacleLabel: string = 'EVADE';
 
@@ -179,6 +182,7 @@ export class Spawner extends Component {
         pickup.value = isObstacle ? 0 : coinValue;
         pickup.speed = this.speed;
         pickup.player = this.player;
+        if (!isObstacle) pickup.radius = this.coinPickRadius; // монеты собираются щедрее
 
         this.node.addChild(sprite);
 

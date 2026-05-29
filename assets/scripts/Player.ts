@@ -71,6 +71,8 @@ export class Player extends Component {
 
     public getJumpHeight(): number { return this.jumpY; }
     public isJumping(): boolean { return !this.grounded; }
+    /** Вертикальная скорость: >0 — взлёт, ~0 — пик, <0 — падение. */
+    public getVerticalVelocity(): number { return this.velocityY; }
 
     update(dt: number) {
         const gm = GameManager.instance;
