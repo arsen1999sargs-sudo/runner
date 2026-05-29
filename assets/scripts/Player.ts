@@ -1,30 +1,36 @@
-import { _decorator, Component, input, Input, EventTouch, CCFloat } from 'cc';
+import { _decorator, Component, input, Input, EventTouch, CCFloat, Vec3 } from 'cc';
 import { GameManager, GameState } from './GameManager';
 const { ccclass, property } = _decorator;
 
 /**
- * Игрок-бегун с механикой ПРЫЖКА:
- *  - Тап (IDLE)      → старт игры
- *  - Тап (RUNNING)   → прыжок (если на земле)
- *  - В воздухе персонаж перепрыгивает препятствия
- *  - На земле — покачивание бега; в покое — дыхание
+ * Игрок-бегун: ОДИН статичный кадр + ПРОЦЕДУРНОЕ движение (без дёрганья).
+ *  - Тап (IDLE)    → старт игры
+ *  - Тап (RUNNING) → прыжок (физика)
+ *  - Бег на земле  → покачивание (bounce) + squash-stretch + лёгкий наклон
+ *  - Покой         → спокойное дыхание
  *
- * getJumpHeight() используется в Pickup.ts чтобы понять, перепрыгнут ли барьер.
+ * Анимация целиком процедурная — кадр не меняется, поэтому всегда плавно.
  */
 @ccclass('Player')
 export class Player extends Component {
 
-    @property({ type: CCFloat, tooltip: 'Начальная скорость прыжка (вверх)' })
+    @property({ type: CCFloat, tooltip: 'Сила прыжка' })
     jumpVelocity: number = 1100;
 
-    @property({ type: CCFloat, tooltip: 'Гравитация (тянет вниз)' })
+    @property({ type: CCFloat, tooltip: 'Гравитация' })
     gravity: number = 3200;
 
     @property({ type: CCFloat, tooltip: 'Высота подскока при беге (px)' })
-    bobHeight: number = 12;
+    runBobHeight: number = 18;
 
-    @property({ type: CCFloat, tooltip: 'Скорость покачивания бега' })
-    runSpeed: number = 7;
+    @property({ type: CCFloat, tooltip: 'Скорость бега (циклов/сек)' })
+    runBobSpeed: number = 4.5;
+
+    @property({ type: CCFloat, tooltip: 'Сжатие/растяжение при беге (0..0.3)' })
+    runSquash: number = 0.12;
+
+    @property({ type: CCFloat, tooltip: 'Наклон корпуса при беге (градусы)' })
+    runLean: number = 6;
 
     @property({ type: CCFloat, tooltip: 'Дыхание в покое (px)' })
     idleBreath: number = 3;
@@ -34,7 +40,8 @@ export class Player extends Component {
 
     private baseX: number = 0;
     private baseY: number = -150;
-    private jumpY: number = 0;       // текущая высота над землёй
+    private baseScale: Vec3 = new Vec3(1, 1, 1);
+    private jumpY: number = 0;
     private velocityY: number = 0;
     private grounded: boolean = true;
     private bobTime: number = 0;
@@ -43,6 +50,7 @@ export class Player extends Component {
     onLoad() {
         this.baseX = this.node.position.x;
         this.baseY = this.node.position.y;
+        this.baseScale = this.node.scale.clone();
         input.on(Input.EventType.TOUCH_START, this.onTouchStart, this);
     }
 
@@ -53,28 +61,16 @@ export class Player extends Component {
     onTouchStart(_e: EventTouch) {
         const gm = GameManager.instance;
         if (!gm) return;
-
-        if (gm.getState() === GameState.IDLE) {
-            gm.startGame();
-            return;
-        }
+        if (gm.getState() === GameState.IDLE) { gm.startGame(); return; }
         if (gm.getState() !== GameState.RUNNING) return;
-
-        // прыжок, только если на земле
         if (this.grounded) {
             this.velocityY = this.jumpVelocity;
             this.grounded = false;
         }
     }
 
-    /** Текущая высота прыжка (0 = на земле) */
-    public getJumpHeight(): number {
-        return this.jumpY;
-    }
-
-    public isJumping(): boolean {
-        return !this.grounded;
-    }
+    public getJumpHeight(): number { return this.jumpY; }
+    public isJumping(): boolean { return !this.grounded; }
 
     update(dt: number) {
         const gm = GameManager.instance;
@@ -83,21 +79,17 @@ export class Player extends Component {
         let y = this.baseY;
 
         if (running && !this.grounded) {
-            // физика прыжка
+            // ПРЫЖОК — только физика (голова двигается вверх — это нормально для прыжка)
             this.velocityY -= this.gravity * dt;
             this.jumpY += this.velocityY * dt;
-            if (this.jumpY <= 0) {
-                this.jumpY = 0;
-                this.velocityY = 0;
-                this.grounded = true;
-            }
+            if (this.jumpY <= 0) { this.jumpY = 0; this.velocityY = 0; this.grounded = true; }
             y = this.baseY + this.jumpY;
         } else if (running) {
-            // покачивание бега на земле
-            this.bobTime += dt * this.runSpeed * Math.PI * 2;
-            y = this.baseY + Math.abs(Math.sin(this.bobTime)) * this.bobHeight;
+            // БЕГ на земле — позиция ФИКСИРОВАНА (голова не двигается).
+            // Движение ног/рук делает покадровая анимация (PlayerAnimator с фикс. головой).
+            y = this.baseY;
         } else {
-            // в покое — стоит ровно (без движения до старта)
+            // ПОКОЙ — стоит ровно
             y = this.baseY;
         }
 

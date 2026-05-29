@@ -1,7 +1,17 @@
-import { _decorator, Component, Sprite, SpriteFrame, Texture2D, Rect, CCInteger, CCFloat, Size } from 'cc';
+import { _decorator, Component, Sprite, SpriteFrame, Texture2D, Rect, CCInteger, CCFloat, CCBoolean, Size, Node, UITransform, UIOpacity } from 'cc';
 import { GameManager, GameState } from './GameManager';
+import { Player } from './Player';
 const { ccclass, property } = _decorator;
 
+/**
+ * Анимация персонажа из спрайт-листа с КРОССФЕЙДОМ.
+ *   - IDLE  → idleFrameIndex
+ *   - JUMP  → jumpFrameIndex (держим)
+ *   - RUN   → цикл runFrameIndexes с плавным перетеканием между кадрами
+ *
+ * Кроссфейд: верхний слой (overlay) плавно проявляет СЛЕДУЮЩИЙ кадр поверх
+ * текущего — переходы плавные, без "прыжков", даже если позы из разных рядов.
+ */
 @ccclass('PlayerAnimator')
 export class PlayerAnimator extends Component {
 
@@ -12,65 +22,62 @@ export class PlayerAnimator extends Component {
     cols: number = 5;
 
     @property(CCInteger)
-    rows: number = 6;
+    rows: number = 1;
 
     @property(CCFloat)
-    fps: number = 12;
+    fps: number = 10;
 
-    @property({ type: [CCInteger] })
-    runFrameIndexes: number[] = [0, 1, 2, 3, 4];
+    @property({ type: [CCInteger], tooltip: 'Кадры цикла бега (1,2,3,4); 0 — idle' })
+    runFrameIndexes: number[] = [1, 2, 3, 4];
 
     @property(CCInteger)
-    idleFrameIndex: number = 5;
+    idleFrameIndex: number = 0;
 
-    @property({ type: CCFloat, tooltip: 'Отступ в пикселях для обрезки краёв каждого кадра (убирает затекание соседних кадров)' })
-    inset: number = 4;
+    @property(CCInteger)
+    jumpFrameIndex: number = 2;
+
+    @property({ type: CCFloat, tooltip: 'Обрезка краёв кадра' })
+    inset: number = 0;
+
+    @property({ type: CCBoolean, tooltip: 'Плавное перетекание между кадрами (убирает дёрганье)' })
+    crossfade: boolean = true;
 
     private sprite: Sprite | null = null;
+    private overlaySprite: Sprite | null = null;
+    private overlayOpacity: UIOpacity | null = null;
+    private player: Player | null = null;
     private frames: SpriteFrame[] = [];
-    private elapsed: number = 0;
-    private current: number = 0;
-    private playing: boolean = false;
-    private activeSeq: number[] = [];
+    private cur: number = 0;
+    private blend: number = 0;
 
     start() {
         this.sprite = this.getComponent(Sprite);
-        // Если Source Frame не задан в инспекторе — берём картинку из самого Sprite
+        this.player = this.getComponent(Player);
         if (!this.sourceFrame && this.sprite && this.sprite.spriteFrame) {
             this.sourceFrame = this.sprite.spriteFrame;
         }
         this.buildFrames();
-        this.showIdle();
+        this.createOverlay();
+        this.applyIdle();
     }
 
     private buildFrames() {
-        if (!this.sprite) {
-            console.warn('[PlayerAnimator] cc.Sprite НЕ найден на узле Player');
-            return;
-        }
-        if (!this.sourceFrame) {
-            console.warn('[PlayerAnimator] sourceFrame пустой И в Sprite нет spriteFrame');
-            return;
-        }
+        if (!this.sprite) { console.warn('[PlayerAnimator] нет cc.Sprite'); return; }
+        if (!this.sourceFrame) { console.warn('[PlayerAnimator] нет sourceFrame'); return; }
 
         const tex = this.sourceFrame.texture as Texture2D;
-        // используем РЕАЛЬНЫЙ размер исходного rect (с учётом trim)
         const baseRect = this.sourceFrame.rect;
-        const sheetW = baseRect.width;
-        const sheetH = baseRect.height;
-        const originX = baseRect.x;
-        const originY = baseRect.y;
-        const frameW = sheetW / this.cols;
-        const frameH = sheetH / this.rows;
-
+        const frameW = baseRect.width / this.cols;
+        const frameH = baseRect.height / this.rows;
         const ins = this.inset;
+
         for (let row = 0; row < this.rows; row++) {
             for (let col = 0; col < this.cols; col++) {
                 const sf = new SpriteFrame();
                 sf.texture = tex;
                 sf.rect = new Rect(
-                    originX + col * frameW + ins,
-                    originY + row * frameH + ins,
+                    baseRect.x + col * frameW + ins,
+                    baseRect.y + row * frameH + ins,
                     frameW - ins * 2,
                     frameH - ins * 2
                 );
@@ -78,50 +85,76 @@ export class PlayerAnimator extends Component {
                 this.frames.push(sf);
             }
         }
-        console.log(`[PlayerAnimator] разрезано кадров: ${this.frames.length}, inset=${ins}`);
+        console.log(`[PlayerAnimator] кадров: ${this.frames.length}`);
     }
 
-    showIdle() {
-        this.playing = false;
-        this.activeSeq = [];
-        if (this.sprite && this.frames[this.idleFrameIndex]) {
-            this.sprite.spriteFrame = this.frames[this.idleFrameIndex];
+    private createOverlay() {
+        const node = new Node('Xfade');
+        node.layer = this.node.layer;
+
+        const pui = this.getComponent(UITransform);
+        const ui = node.addComponent(UITransform);
+        if (pui) {
+            ui.setContentSize(pui.contentSize);
+            ui.setAnchorPoint(pui.anchorPoint);
         }
+
+        this.overlaySprite = node.addComponent(Sprite);
+        this.overlaySprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        this.overlaySprite.type = Sprite.Type.SIMPLE;
+
+        this.overlayOpacity = node.addComponent(UIOpacity);
+        this.overlayOpacity.opacity = 0;
+
+        this.node.addChild(node);
+        node.setPosition(0, 0, 0);
     }
 
-    playRun() {
-        if (this.playing) return;
-        this.activeSeq = this.runFrameIndexes.slice();
-        this.current = 0;
-        this.elapsed = 0;
-        this.playing = true;
+    private setMain(idx: number) {
+        if (this.sprite && this.frames[idx]) this.sprite.spriteFrame = this.frames[idx];
     }
 
-    stop() {
-        this.showIdle();
+    private applyIdle() {
+        this.setMain(this.idleFrameIndex);
+        if (this.overlayOpacity) this.overlayOpacity.opacity = 0;
     }
 
     update(dt: number) {
         const gm = GameManager.instance;
-        if (gm) {
-            if (gm.getState() === GameState.RUNNING && !this.playing) {
-                this.playRun();
-            } else if (gm.getState() !== GameState.RUNNING && this.playing) {
-                this.stop();
-            }
+        const running = gm && gm.getState() === GameState.RUNNING;
+
+        if (!running) {
+            this.applyIdle();
+            this.blend = 0; this.cur = 0;
+            return;
         }
 
-        if (!this.playing || this.activeSeq.length === 0 || !this.sprite) return;
+        if (this.player && this.player.isJumping()) {
+            this.setMain(this.jumpFrameIndex);
+            if (this.overlayOpacity) this.overlayOpacity.opacity = 0;
+            this.blend = 0;
+            return;
+        }
 
-        this.elapsed += dt;
-        const frameDuration = 1 / this.fps;
-        while (this.elapsed >= frameDuration) {
-            this.elapsed -= frameDuration;
-            this.current = (this.current + 1) % this.activeSeq.length;
-            const idx = this.activeSeq[this.current];
-            if (this.frames[idx]) {
-                this.sprite.spriteFrame = this.frames[idx];
-            }
+        const seq = this.runFrameIndexes;
+        if (seq.length === 0) return;
+
+        const curIdx = seq[this.cur % seq.length];
+        const nextIdx = seq[(this.cur + 1) % seq.length];
+        this.setMain(curIdx);
+
+        this.blend += dt * this.fps;
+
+        if (this.crossfade && this.overlaySprite && this.overlayOpacity) {
+            if (this.frames[nextIdx]) this.overlaySprite.spriteFrame = this.frames[nextIdx];
+            this.overlayOpacity.opacity = Math.floor(Math.min(1, this.blend) * 255);
+        } else if (this.overlayOpacity) {
+            this.overlayOpacity.opacity = 0;
+        }
+
+        if (this.blend >= 1) {
+            this.blend -= 1;
+            this.cur = (this.cur + 1) % seq.length;
         }
     }
 }
