@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, CCFloat, Color, Sprite, SpriteFrame, UITransform, Vec3, Label, Font, LabelOutline, HorizontalTextAlignment, VerticalTextAlignment } from 'cc';
+import { _decorator, Component, Node, CCFloat, CCInteger, Color, Sprite, SpriteFrame, UITransform, Vec3, Label, Font, HorizontalTextAlignment, VerticalTextAlignment } from 'cc';
 import { GameManager, GameState } from './GameManager';
 import { Pickup, PickupKind } from './Pickup';
 import { RoundedRect } from './RoundedRect';
@@ -57,6 +57,12 @@ export class Spawner extends Component {
 
     @property({ type: CCFloat, tooltip: 'Радиус сбора монеты (больше = легче собрать; не влияет на препятствия)' })
     coinPickRadius: number = 100;
+
+    @property({ group: { name: 'Интро (до первого врага)' }, type: CCInteger, tooltip: 'Сколько money_coin спавнить в начале до встречи с мужиком' })
+    introCoinCount: number = 2;
+
+    @property({ group: { name: 'Интро (до первого врага)' }, type: CCInteger, tooltip: 'Индекс money_coin в Coin Frames (что спавнить в интро)' })
+    introCoinIndex: number = 1;
 
     @property({ tooltip: 'Текст над барьером (пусто = без текста)' })
     obstacleLabel: string = 'EVADE';
@@ -123,29 +129,70 @@ export class Spawner extends Component {
     pulseSpeed: number = 2;
 
     private timer: number = 0;
+    private introSpawned: number = 0;
+    private nearFinishCleared: boolean = false;
+
+    start() {
+        const gm = GameManager.instance;
+        if (gm) {
+            // при входе в обучающую паузу убираем оставшиеся монеты — экран чист (только девочка и мужик)
+            gm.registerStateChange((s) => {
+                if (s === GameState.TUTORIAL) this.clearCoins();
+            });
+        }
+    }
+
+    private clearCoins() {
+        const kids = [...this.node.children];
+        for (const c of kids) {
+            if (c.name === 'Coin') c.destroy();
+        }
+    }
+
+    private clearAll() {
+        const kids = [...this.node.children];
+        for (const c of kids) {
+            if (c.name === 'Coin' || c.name === 'Obstacle') c.destroy();
+        }
+    }
 
     update(dt: number) {
         const gm = GameManager.instance;
         if (!gm || gm.getState() !== GameState.RUNNING) return;
 
+        // последние секунды перед финишем — ничего не спавним, чистим монеты/конусы
+        if (gm.isNearFinish()) {
+            if (!this.nearFinishCleared) { this.clearAll(); this.nearFinishCleared = true; }
+            return;
+        }
+
         this.timer += dt;
         if (this.timer >= this.spawnInterval) {
             this.timer = 0;
-            this.spawnOne();
+            if (!gm.tutorialDone) {
+                // интро до первого врага: только money_coin, максимум introCoinCount, без препятствий
+                if (this.introSpawned < this.introCoinCount) {
+                    this.spawnOne(this.introCoinIndex);
+                    this.introSpawned++;
+                }
+            } else {
+                this.spawnOne();
+            }
         }
     }
 
-    private spawnOne() {
-        const isObstacle = Math.random() < this.obstacleChance;
+    private spawnOne(introCoinIdx: number = -1) {
+        const intro = introCoinIdx >= 0;
+        const isObstacle = intro ? false : (Math.random() < this.obstacleChance);
 
         const sprite = new Node(isObstacle ? 'Obstacle' : 'Coin');
         sprite.layer = this.node.layer;
 
-        // для монеты выбираем случайную картинку из списка (PayPal / купюра)
+        // для монеты выбираем картинку: в интро — фиксированный money_coin, иначе случайно
         let coinFrame: SpriteFrame | null = null;
         let coinIdx = -1;
         if (!isObstacle && this.coinFrames.length > 0) {
-            coinIdx = Math.floor(Math.random() * this.coinFrames.length);
+            coinIdx = intro ? introCoinIdx : Math.floor(Math.random() * this.coinFrames.length);
             coinFrame = this.coinFrames[coinIdx];
         }
 
@@ -233,6 +280,7 @@ export class Spawner extends Component {
             pulse.minScale = this.pulseMin;
             pulse.maxScale = this.pulseMax;
             pulse.speed = this.pulseSpeed;
+            pulse.stopOnGameOver = true; // на проигрыше EVADE замирает на минимуме
         }
 
         parent.addChild(badge);
@@ -256,9 +304,9 @@ export class Spawner extends Component {
         if (this.labelFont) label.font = this.labelFont;
 
         if (outlineWidth > 0) {
-            const outline = textNode.addComponent(LabelOutline);
-            outline.color = this.hexToColor(outlineHex);
-            outline.width = outlineWidth;
+            label.enableOutline = true;
+            label.outlineColor = this.hexToColor(outlineHex);
+            label.outlineWidth = outlineWidth;
         }
 
         badge.addChild(textNode);

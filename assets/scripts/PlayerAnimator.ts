@@ -1,4 +1,4 @@
-import { _decorator, Component, Sprite, SpriteFrame, Texture2D, Rect, CCInteger, CCFloat, Size, Vec2, Node, UITransform, UIOpacity } from 'cc';
+import { _decorator, Component, Sprite, SpriteFrame, Texture2D, Rect, CCInteger, CCFloat, Color, Size, Vec2, Node, UITransform, UIOpacity } from 'cc';
 import { GameManager, GameState } from './GameManager';
 import { Player } from './Player';
 const { ccclass, property } = _decorator;
@@ -54,6 +54,15 @@ export class PlayerAnimator extends Component {
     @property({ tooltip: 'Плавное перетекание между кадрами (убирает дёрганье)' })
     crossfade: boolean = true;
 
+    @property({ type: SpriteFrame, tooltip: 'Кадр УДАРА (sprite_10 из атласа девочки) — при столкновении с барьером/мужиком' })
+    hurtFrame: SpriteFrame = null!;
+
+    @property({ type: CCFloat, tooltip: 'Сколько держать реакцию на удар, сек' })
+    hurtDuration: number = 0.5;
+
+    @property({ tooltip: 'Цвет покраснения при ударе' })
+    hurtColor: Color = new Color(190, 60, 60, 255);
+
     private sprite: Sprite | null = null;
     private overlaySprite: Sprite | null = null;
     private overlayOpacity: UIOpacity | null = null;
@@ -62,6 +71,12 @@ export class PlayerAnimator extends Component {
     private frames: SpriteFrame[] = [];
     private cur: number = 0;
     private blend: number = 0;
+    private hurtTimer: number = 0;
+
+    /** Реакция на удар: показать sprite_10 + покраснеть на hurtDuration сек. */
+    public playHurt() {
+        this.hurtTimer = this.hurtDuration;
+    }
     // единый масштаб «пиксель кадра → юнит сцены», берётся от run-кадра.
     // Нужен, чтобы кадры АТЛАСА (обрезаны впритык) и кадры бега (с полями)
     // рендерились в ОДНОМ размере, а не «прыгали» крупнее при прыжке.
@@ -175,6 +190,19 @@ export class PlayerAnimator extends Component {
     }
 
     update(dt: number) {
+        // РЕАКЦИЯ НА УДАР: sprite_10 + покраснение (перекрывает обычную анимацию)
+        if (this.hurtTimer > 0) {
+            this.hurtTimer -= dt;
+            if (this.sprite) this.sprite.color = this.hurtColor;
+            if (this.hurtFrame) this.applyFrame(this.hurtFrame);
+            if (this.overlayOpacity) this.overlayOpacity.opacity = 0;
+            return;
+        }
+        // вернуть нормальный цвет после удара
+        if (this.sprite && !this.sprite.color.equals(Color.WHITE)) {
+            this.sprite.color = Color.WHITE;
+        }
+
         const gm = GameManager.instance;
         const running = gm && gm.getState() === GameState.RUNNING;
 

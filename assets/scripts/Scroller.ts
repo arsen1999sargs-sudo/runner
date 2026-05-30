@@ -34,7 +34,6 @@ export class Scroller extends Component {
                 child.setPosition(p.x, this.topY, p.z);
             }
         }
-
-        gm.addDistance(this.distancePerSecond * dt);
+        // дистанцию/прогресс к финишу теперь ведёт GameManager по времени (finishTime)
     }
 }

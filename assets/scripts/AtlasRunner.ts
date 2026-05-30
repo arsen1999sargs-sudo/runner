@@ -1,4 +1,5 @@
 import { _decorator, Component, Sprite, SpriteFrame, SpriteAtlas, CCInteger, CCFloat, UITransform } from 'cc';
+import { GameManager, GameState } from './GameManager';
 const { ccclass, property } = _decorator;
 
 /**
@@ -32,12 +33,19 @@ export class AtlasRunner extends Component {
     @property({ tooltip: 'Отразить по горизонтали (если бежит не в ту сторону)' })
     flipX: boolean = false;
 
+    @property({ type: CCInteger, tooltip: 'Кадр СТОЙКИ (показывается на паузе/вне игры). -1 = замереть на текущем кадре' })
+    idleFrameIndex: number = -1;
+
+    @property({ type: CCInteger, tooltip: 'Длина цикла БЕГА (сколько первых кадров крутить). 0 = все кадры' })
+    runFrameCount: number = 0;
+
     private sprite: Sprite | null = null;
     private ui: UITransform | null = null;
     private frames: SpriteFrame[] = [];
     private cur: number = 0;
     private t: number = 0;
     private unit: number = 1; // единый масштаб «пиксель кадра → юнит»
+    private idleShown: boolean = false;
 
     // onLoad (а не start) — чтобы кадр/отражение/размер выставились ДО первой
     // отрисовки и в самом начале не мелькал «неправильный» кадр.
@@ -86,10 +94,29 @@ export class AtlasRunner extends Component {
     update(dt: number) {
         if (this.frames.length === 0) return;
 
+        // вне игры (в т.ч. в обучающей паузе TUTORIAL) — встаём в позу СТОЙКИ (стоит, как девочка)
+        const gm = GameManager.instance;
+        if (gm && gm.getState() !== GameState.RUNNING) {
+            if (!this.idleShown && this.idleFrameIndex >= 0 && this.idleFrameIndex < this.frames.length) {
+                this.cur = this.idleFrameIndex;
+                this.t = 0;
+                this.show(this.idleFrameIndex);
+                this.idleShown = true;
+            }
+            return;
+        }
+        this.idleShown = false;
+
+        // цикл бега крутится только внутри первых runFrameCount кадров
+        // (хвостовые кадры атласа — это стойка, в бег их не берём)
+        const runLen = this.runFrameCount > 0
+            ? Math.min(this.runFrameCount, this.frames.length)
+            : this.frames.length;
+
         this.t += dt * this.fps;
         if (this.t >= 1) {
             this.t -= Math.floor(this.t);
-            this.cur = (this.cur + 1) % this.frames.length;
+            this.cur = (this.cur + 1) % runLen;
             this.show(this.cur);
         }
 

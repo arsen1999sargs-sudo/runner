@@ -1,6 +1,7 @@
 import { _decorator, Component, Node, CCFloat, CCInteger } from 'cc';
 import { GameManager, GameState } from './GameManager';
 import { Player } from './Player';
+import { PlayerAnimator } from './PlayerAnimator';
 const { ccclass, property } = _decorator;
 
 export enum PickupKind {
@@ -86,7 +87,13 @@ export class Pickup extends Component {
     private onHitObstacle(gm: GameManager) {
         this.hitOnce = true;
         gm.loseLife();
-        this.node.destroy();
+        // реакция девочки: кадр удара (sprite_10) + покраснение
+        if (this.player) {
+            const anim = this.player.getComponent(PlayerAnimator);
+            if (anim) anim.playHurt();
+        }
+        // НЕ удаляем препятствие/мужика — они едут дальше и уезжают за экран сами
+        // (повторно жизнь не снимут — стоит hitOnce)
     }
 
     private onPickCoin(gm: GameManager) {

@@ -62,7 +62,16 @@ export class Player extends Component {
         const gm = GameManager.instance;
         if (!gm) return;
         if (gm.getState() === GameState.IDLE) { gm.startGame(); return; }
+        // пауза-подсказка перед первым врагом: тап продолжает игру И сразу прыгает над врагом
+        if (gm.getState() === GameState.TUTORIAL) {
+            gm.resumeFromTutorial();
+            this.velocityY = this.jumpVelocity;
+            this.grounded = false;
+            return;
+        }
         if (gm.getState() !== GameState.RUNNING) return;
+        // до первой встречи с мужиком (обучения) прыжок выключен
+        if (!gm.tutorialDone) return;
         if (this.grounded) {
             this.velocityY = this.jumpVelocity;
             this.grounded = false;

@@ -1,9 +1,10 @@
-import { _decorator, Component, Node, Label, Sprite, director, Color } from 'cc';
+import { _decorator, Component, Node, Label, Sprite, director, Color, CCFloat } from 'cc';
 const { ccclass, property } = _decorator;
 
 export enum GameState {
     IDLE = 'IDLE',
     RUNNING = 'RUNNING',
+    TUTORIAL = 'TUTORIAL',   // пауза-подсказка (первый враг): всё замирает, ждём тап
     DEAD = 'DEAD',
     FINISHED = 'FINISHED',
 }
@@ -18,12 +19,23 @@ export class GameManager extends Component {
     @property(Node) tapToStartNode: Node = null!;
     @property(Node) gameOverNode: Node = null!;
     @property(Node) finishNode: Node = null!;
+    @property({ type: Node, tooltip: 'Подсказка "Jump to avoid enemies" (показывается в паузе перед первым врагом)' })
+    tutorialNode: Node = null!;
+
+    public tutorialDone: boolean = false;
+
+    @property({ type: CCFloat, tooltip: 'Через сколько секунд после старта появляется финиш' })
+    finishTime: number = 23;
+
+    @property({ type: CCFloat, tooltip: 'За сколько секунд до финиша прекращать спавн и чистить экран' })
+    clearBeforeFinish: number = 3;
 
     public state: GameState = GameState.IDLE;
     public lives: number = 3;
     public earnings: number = 0;
     public distanceTraveled: number = 0;
     public readonly FINISH_DISTANCE: number = 2000;
+    private runElapsed: number = 0;
 
     public onStateChange: ((state: GameState) => void)[] = [];
 
@@ -44,18 +56,54 @@ export class GameManager extends Component {
         if (this.tapToStartNode) this.tapToStartNode.active = (newState === GameState.IDLE);
         if (this.gameOverNode) this.gameOverNode.active = (newState === GameState.DEAD);
         if (this.finishNode) this.finishNode.active = (newState === GameState.FINISHED);
+        if (this.tutorialNode) this.tutorialNode.active = (newState === GameState.TUTORIAL);
     }
 
     public getState(): GameState { return this.state; }
+
+    /** Поставить обучающую паузу перед первым врагом (один раз). */
+    public pauseForTutorial() {
+        if (this.state !== GameState.RUNNING || this.tutorialDone) return;
+        this.setState(GameState.TUTORIAL);
+    }
+
+    /** Снять паузу-подсказку, продолжить игру (вызывается по тапу). */
+    public resumeFromTutorial() {
+        if (this.state !== GameState.TUTORIAL) return;
+        this.tutorialDone = true;
+        this.setState(GameState.RUNNING);
+    }
 
     public startGame() {
         if (this.state !== GameState.IDLE) return;
         this.lives = 3;
         this.earnings = 0;
         this.distanceTraveled = 0;
+        this.runElapsed = 0;
         this.updateHeartsUI();
         this.updateEarningsUI();
         this.setState(GameState.RUNNING);
+    }
+
+    update(dt: number) {
+        if (this.state !== GameState.RUNNING) return;
+        // считаем время игры; сам финиш заканчивает игру, когда девочка добегает до ленты (FinishGate)
+        this.runElapsed += dt;
+        const t = Math.min(1, this.runElapsed / this.finishTime);
+        this.distanceTraveled = t * this.FINISH_DISTANCE;
+    }
+
+    /** Время с начала забега (сек). */
+    public getRunElapsed(): number { return this.runElapsed; }
+
+    /** Последние секунды перед финишем — пора прекратить спавн и очистить экран. */
+    public isNearFinish(): boolean {
+        return this.state === GameState.RUNNING && this.runElapsed >= (this.finishTime - this.clearBeforeFinish);
+    }
+
+    /** Закончить игру победой (вызывает FinishGate, когда девочка добежала до ленты). */
+    public finishGame() {
+        if (this.state === GameState.RUNNING) this.setState(GameState.FINISHED);
     }
 
     public loseLife() {
