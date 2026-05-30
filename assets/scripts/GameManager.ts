@@ -36,6 +36,8 @@ export class GameManager extends Component {
     public distanceTraveled: number = 0;
     public readonly FINISH_DISTANCE: number = 2000;
     private runElapsed: number = 0;
+    // ставится FinishMover'ом за clearBeforeFinish сек до приезда финиша — экран чистится
+    public nearFinish: boolean = false;
 
     public onStateChange: ((state: GameState) => void)[] = [];
 
@@ -54,8 +56,10 @@ export class GameManager extends Component {
         this.onStateChange.forEach(cb => cb(newState));
 
         if (this.tapToStartNode) this.tapToStartNode.active = (newState === GameState.IDLE);
-        if (this.gameOverNode) this.gameOverNode.active = (newState === GameState.DEAD);
-        if (this.finishNode) this.finishNode.active = (newState === GameState.FINISHED);
+        // экран награды (затемнение + карточка) показываем и на проигрыше, и на победе
+        if (this.gameOverNode) this.gameOverNode.active = (newState === GameState.DEAD || newState === GameState.FINISHED);
+        // текст «You Won!» больше не показываем — концовку показывает карточка награды
+        if (this.finishNode) this.finishNode.active = false;
         if (this.tutorialNode) this.tutorialNode.active = (newState === GameState.TUTORIAL);
     }
 
@@ -80,6 +84,7 @@ export class GameManager extends Component {
         this.earnings = 0;
         this.distanceTraveled = 0;
         this.runElapsed = 0;
+        this.nearFinish = false;
         this.updateHeartsUI();
         this.updateEarningsUI();
         this.setState(GameState.RUNNING);
@@ -87,6 +92,8 @@ export class GameManager extends Component {
 
     update(dt: number) {
         if (this.state !== GameState.RUNNING) return;
+        // отсчёт до финиша стартует только ПОСЛЕ подсказки «jump to avoid enemies» и клика по ней
+        if (!this.tutorialDone) return;
         // считаем время игры; сам финиш заканчивает игру, когда девочка добегает до ленты (FinishGate)
         this.runElapsed += dt;
         const t = Math.min(1, this.runElapsed / this.finishTime);
@@ -96,9 +103,10 @@ export class GameManager extends Component {
     /** Время с начала забега (сек). */
     public getRunElapsed(): number { return this.runElapsed; }
 
-    /** Последние секунды перед финишем — пора прекратить спавн и очистить экран. */
+    /** Последние секунды перед финишем — пора прекратить спавн и очистить экран.
+     *  Флаг ставит FinishMover ровно за clearBeforeFinish сек до приезда финиша. */
     public isNearFinish(): boolean {
-        return this.state === GameState.RUNNING && this.runElapsed >= (this.finishTime - this.clearBeforeFinish);
+        return this.state === GameState.RUNNING && this.nearFinish;
     }
 
     /** Закончить игру победой (вызывает FinishGate, когда девочка добежала до ленты). */
@@ -125,8 +133,8 @@ export class GameManager extends Component {
     }
 
     public restartGame() {
-        this.setState(GameState.IDLE);
-        director.loadScene('Game');
+        const s = director.getScene();
+        if (s) director.loadScene(s.name); // перезагрузка текущей сцены
     }
 
     private updateHeartsUI() {

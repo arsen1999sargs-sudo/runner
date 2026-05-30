@@ -1,5 +1,6 @@
-import { _decorator, Component, Node, Graphics, Label, UITransform, Vec2, Vec3, Color, CCFloat, CCObject, input, Input, director } from 'cc';
+import { _decorator, Component, Node, Graphics, Label, UITransform, Vec2, Vec3, Color, CCFloat, CCObject, director } from 'cc';
 import { EDITOR } from 'cc/env';
+import { GameManager, GameState } from './GameManager';
 const { ccclass, property, executeInEditMode } = _decorator;
 
 /**
@@ -33,6 +34,19 @@ export class InstallButton extends Component {
     @property({ type: CCFloat, tooltip: 'Толщина рамки' })
     strokeWidth: number = 5;
 
+    @property({ tooltip: 'Цвет обводки текста (hex без #)' })
+    textOutlineHex: string = '7A1414';
+
+    // ---- Цвета на ПОБЕДЕ (жёлтая кнопка) ----
+    @property({ group: { name: 'Цвета на победе' }, tooltip: 'Верх — светло-оранжевый (hex без #)' })
+    winTopColorHex: string = 'FFB23C';
+    @property({ group: { name: 'Цвета на победе' }, tooltip: 'Низ — тёмно-оранжевый (hex без #)' })
+    winBottomColorHex: string = 'D2730A';
+    @property({ group: { name: 'Цвета на победе' }, tooltip: 'Рамка (hex без #)' })
+    winStrokeColorHex: string = '9A5400';
+    @property({ group: { name: 'Цвета на победе' }, tooltip: 'Обводка текста (hex без #)' })
+    winTextOutlineHex: string = '7A4E00';
+
     @property({ tooltip: 'Пульсация (привлекает внимание)' })
     pulse: boolean = true;
 
@@ -48,21 +62,32 @@ export class InstallButton extends Component {
     private lastHash: string = '';
     private appearing: boolean = false;
     private appearTimer: number = 0;
+    private _win: boolean = false;
+
+    private curTop(): string { return this._win ? this.winTopColorHex : this.topColorHex; }
+    private curBot(): string { return this._win ? this.winBottomColorHex : this.bottomColorHex; }
+    private curStroke(): string { return this._win ? this.winStrokeColorHex : this.strokeColorHex; }
+    private curOutline(): string { return this._win ? this.winTextOutlineHex : this.textOutlineHex; }
 
     onLoad() {
         this.base = this.node.scale.clone();
         this.build();
-        if (!EDITOR) input.on(Input.EventType.TOUCH_END, this.onTap, this);
+        // тап ТОЛЬКО по самой кнопке (а не по всему экрану)
+        if (!EDITOR) this.node.on(Node.EventType.TOUCH_END, this.onTap, this);
     }
     onEnable() {
         // плавное появление вместе с картой (растёт из нуля)
         if (EDITOR) return;
+        // победа или проигрыш — выбираем цвет кнопки
+        const gm = GameManager.instance;
+        this._win = !!gm && gm.getState() === GameState.FINISHED;
+        this.build(); // перерисовать нужным цветом
         this.appearing = true;
         this.appearTimer = 0;
         this.node.setScale(0, 0, 1);
     }
     onDestroy() {
-        if (!EDITOR) input.off(Input.EventType.TOUCH_END, this.onTap, this);
+        if (!EDITOR) this.node.off(Node.EventType.TOUCH_END, this.onTap, this);
     }
 
     private onTap() {
@@ -92,12 +117,18 @@ export class InstallButton extends Component {
         lb.string = this.text;
         lb.fontSize = this.fontSize;
         lb.lineHeight = this.fontSize * 1.1;
-        lb.color = new Color(255, 255, 255, 255);
+        lb.color = new Color(255, 255, 255, 255);   // чистый белый
         lb.isBold = true;
         lb.isItalic = true; // наклонный, как в референсе
+        // тонкая тёмная обводка — держит читаемость, но не «грязнит» белый
         lb.enableOutline = true;
-        lb.outlineColor = this.hex('7A1414');
-        lb.outlineWidth = 3;
+        lb.outlineColor = this.hex(this.curOutline());
+        lb.outlineWidth = 2;
+        // лёгкая тень снизу — объём и ощущение жирности
+        lb.enableShadow = true;
+        lb.shadowColor = new Color(0, 0, 0, 130);
+        lb.shadowOffset = new Vec2(0, -3);
+        lb.shadowBlur = 3;
         this.node.addChild(ln);
         ln.setPosition(0, 0, 0);
     }
@@ -107,7 +138,7 @@ export class InstallButton extends Component {
         const w = ui.contentSize.width, h = ui.contentSize.height;
         const r = Math.min(this.radius, w / 2, h / 2);
         const x0 = -w * ui.anchorX, y0 = -h * ui.anchorY;
-        const top = this.hex(this.topColorHex), bot = this.hex(this.bottomColorHex);
+        const top = this.hex(this.curTop()), bot = this.hex(this.curBot());
         this.gfx.clear();
         // вертикальный градиент полосками со скруглением по краям
         const strips = 40, dy = h / strips;
@@ -126,7 +157,7 @@ export class InstallButton extends Component {
         }
         if (this.strokeWidth > 0) {
             this.gfx.lineWidth = this.strokeWidth;
-            this.gfx.strokeColor = this.hex(this.strokeColorHex);
+            this.gfx.strokeColor = this.hex(this.curStroke());
             this.gfx.roundRect(x0, y0, w, h, r);
             this.gfx.stroke();
         }

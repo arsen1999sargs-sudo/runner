@@ -1,6 +1,7 @@
-import { _decorator, Component, Node, Graphics, Color, Vec2, CCFloat, CCInteger, UITransform } from 'cc';
+import { _decorator, Component, Node, Graphics, Color, Vec2, Vec3, CCFloat, CCInteger, UITransform } from 'cc';
+import { EDITOR } from 'cc/env';
 import { GameManager, GameState } from './GameManager';
-const { ccclass, property } = _decorator;
+const { ccclass, property, executeInEditMode } = _decorator;
 
 /**
  * Финишная лента с эффектом провисающей верёвки (Verlet physics).
@@ -13,6 +14,7 @@ const { ccclass, property } = _decorator;
  *  - При вызове breakAt(x) лента "рвётся" в указанной точке
  */
 @ccclass('FinishLineRope')
+@executeInEditMode
 export class FinishLineRope extends Component {
 
     @property(CCFloat)
@@ -29,6 +31,18 @@ export class FinishLineRope extends Component {
 
     @property(CCFloat)
     thickness: number = 8;
+
+    @property({ type: Color, tooltip: 'Цвет ленты' })
+    ribbonColor: Color = new Color(247, 197, 37, 255); // жёлтый
+
+    @property({ type: Node, tooltip: 'Левый столб (baryer1). Если задан — лента крепится к нему' })
+    leftPole: Node = null!;
+
+    @property({ type: Node, tooltip: 'Правый столб (baryer2). Если задан — лента крепится к нему' })
+    rightPole: Node = null!;
+
+    @property({ type: CCFloat, tooltip: 'Сдвиг точек крепления вверх, к верхушкам столбов' })
+    topOffset: number = 60;
 
     @property(CCFloat)
     triggerY: number = -100;
@@ -56,14 +70,28 @@ export class FinishLineRope extends Component {
         this.points.length = 0;
         this.constraints.length = 0;
 
-        const step = this.length / (this.segments - 1);
-        const startX = -this.length / 2;
+        // Концы ленты в ЛОКАЛЬНЫХ координатах этого узла
+        let ax: number, ay: number, bx: number, by: number;
+
+        if (this.leftPole && this.rightPole) {
+            // крепимся прямо к столбам: берём их мировые позиции (+ сдвиг к верхушке)
+            // и переводим в локальное пространство ленты
+            const lw = new Vec3(); this.leftPole.getWorldPosition(lw); lw.y += this.topOffset;
+            const rw = new Vec3(); this.rightPole.getWorldPosition(rw); rw.y += this.topOffset;
+            const lL = new Vec3(); this.node.inverseTransformPoint(lL, lw);
+            const rL = new Vec3(); this.node.inverseTransformPoint(rL, rw);
+            ax = lL.x; ay = lL.y; bx = rL.x; by = rL.y;
+        } else {
+            // запасной режим: симметрично по длине length
+            ax = -this.length / 2; ay = 0;
+            bx = this.length / 2; by = 0;
+        }
 
         for (let i = 0; i < this.segments; i++) {
-            const x = startX + i * step;
-            // лёгкое провисание (парабола) для начального вида
             const t = i / (this.segments - 1);
-            const y = -this.sag * 4 * t * (1 - t);
+            const x = ax + (bx - ax) * t;
+            // линейная интерполяция между концами + провисание вниз (парабола)
+            const y = ay + (by - ay) * t - this.sag * 4 * t * (1 - t);
             this.points.push({ x, y, px: x, py: y, pinned: i === 0 || i === this.segments - 1 });
         }
 
@@ -99,16 +127,21 @@ export class FinishLineRope extends Component {
     }
 
     update(dt: number) {
+        // В РЕДАКТОРЕ: показываем статичную провисшую ленту (без физики),
+        // чтобы её было видно и можно было точно поставить между столбами.
+        if (EDITOR) {
+            this.buildRope();
+            this.draw();
+            return;
+        }
+
         const gm = GameManager.instance;
 
-        // Триггер разрыва: когда игрок добежал и финиш достигнут
-        if (!this.fired && gm && this.player && gm.getState() === GameState.RUNNING) {
-            // расстояние/прогресс ~ позиция Y от triggerY
-            if (gm.distanceTraveled >= gm.FINISH_DISTANCE * 0.95) {
-                // лента "рвётся" в центре
-                this.breakAt(0);
-                this.fired = true;
-            }
+        // Триггер разрыва: ровно когда девочка добежала до финиша
+        // (FinishMover по приезду вызывает finishGame() → состояние FINISHED)
+        if (!this.fired && gm && gm.getState() === GameState.FINISHED) {
+            this.breakAt(0); // лента рвётся в центре
+            this.fired = true;
         }
 
         // ограничим dt для стабильности
@@ -151,7 +184,7 @@ export class FinishLineRope extends Component {
         if (!this.gfx) return;
         this.gfx.clear();
         this.gfx.lineWidth = this.thickness;
-        this.gfx.strokeColor = new Color(220, 50, 50, 255);
+        this.gfx.strokeColor = this.ribbonColor; // сплошная жёлтая лента
         this.gfx.lineCap = 1; // round
         this.gfx.lineJoin = 1; // round
 
@@ -170,19 +203,6 @@ export class FinishLineRope extends Component {
             for (let i = firstHalfEnd + 2; i < this.points.length; i++) {
                 this.gfx.lineTo(this.points[i].x, this.points[i].y);
             }
-            this.gfx.stroke();
-        }
-
-        // полосатый узор: чёрные риски через каждые 3 сегмента
-        this.gfx.lineWidth = this.thickness * 0.8;
-        this.gfx.strokeColor = new Color(20, 20, 20, 255);
-        for (let i = 0; i < this.segments - 1; i++) {
-            if (i % 2 !== 0) continue;
-            const a = this.points[i];
-            const b = this.points[i + 1];
-            const t1 = 0.3, t2 = 0.7;
-            this.gfx.moveTo(a.x + (b.x - a.x) * t1, a.y + (b.y - a.y) * t1);
-            this.gfx.lineTo(a.x + (b.x - a.x) * t2, a.y + (b.y - a.y) * t2);
             this.gfx.stroke();
         }
     }

@@ -1,5 +1,5 @@
 import { _decorator, Component, CCFloat } from 'cc';
-import { GameManager } from './GameManager';
+import { GameManager, GameState } from './GameManager';
 const { ccclass, property } = _decorator;
 
 /**
@@ -34,8 +34,27 @@ export class FinishMover extends Component {
         const gm = GameManager.instance;
         if (!gm) return;
 
+        // пока не пройдена подсказка «jump to avoid enemies» — держим финиш спрятанным справа
+        if (!gm.tutorialDone) {
+            const p = this.node.position;
+            if (p.x !== this.startX) this.node.setPosition(this.startX, p.y, p.z);
+            return;
+        }
+
+        // финиш уже доехал — оставляем на месте (не прячем после победы/смерти)
+        if (this.done) return;
+
+        // двигаем только во время забега
+        if (gm.getState() !== GameState.RUNNING) return;
+
         const elapsed = gm.getRunElapsed();
         const p = this.node.position;
+
+        // за clearBeforeFinish секунд до приезда — сигналим «скоро финиш»:
+        // спавнеры перестают спавнить и чистят барьеры, мужиков, монеты, paypal
+        if (!gm.nearFinish && elapsed >= this.finishAtSec - gm.clearBeforeFinish) {
+            gm.nearFinish = true;
+        }
 
         // запуск рассчитан так, чтобы приехать к targetX ровно на finishAtSec секунде
         const travel = (this.startX - this.targetX) / Math.max(1, this.moveSpeed);

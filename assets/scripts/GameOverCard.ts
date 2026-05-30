@@ -1,6 +1,6 @@
 import { _decorator, Component, Node, Sprite, SpriteFrame, Label, Font, UITransform, UIOpacity, Vec2, Color, CCFloat, CCObject } from 'cc';
 import { EDITOR } from 'cc/env';
-import { GameManager } from './GameManager';
+import { GameManager, GameState } from './GameManager';
 const { ccclass, property, executeInEditMode } = _decorator;
 
 /**
@@ -20,10 +20,15 @@ export class GameOverCard extends Component {
     @property({ group: { name: 'Кадры' }, type: SpriteFrame, tooltip: 'Карта PayPal (paypal_gm)' })
     cardFrame: SpriteFrame = null!;
 
-    @property({ group: { name: 'Тексты' }, tooltip: 'Заголовок' })
+    @property({ group: { name: 'Тексты' }, tooltip: 'Заголовок (проигрыш)' })
     title: string = "You didn't make it!";
-    @property({ group: { name: 'Тексты' }, tooltip: 'Подзаголовок' })
+    @property({ group: { name: 'Тексты' }, tooltip: 'Подзаголовок (проигрыш)' })
     subtitle: string = 'Try again on the app!';
+
+    @property({ group: { name: 'Тексты' }, tooltip: 'Заголовок на ПОБЕДЕ' })
+    winTitle: string = 'Congratulations!';
+    @property({ group: { name: 'Тексты' }, tooltip: 'Подзаголовок на ПОБЕДЕ' })
+    winSubtitle: string = 'Choose your reward!';
 
     @property({ group: { name: 'Тексты' }, type: Font, tooltip: 'Шрифт заголовка (как у Jump to avoid enemies). Пусто = Fredoka по имени' })
     titleFont: Font = null!;
@@ -53,6 +58,8 @@ export class GameOverCard extends Component {
 
     @property({ group: { name: 'Появление' }, type: CCFloat, tooltip: 'Задержка перед появлением (после роста FAIL), сек' })
     appearDelay: number = 0.55;
+    @property({ group: { name: 'Появление' }, type: CCFloat, tooltip: 'Задержка появления на ПОБЕДЕ (= длительность фейерверка), сек' })
+    winAppearDelay: number = 2.8;
     @property({ group: { name: 'Появление' }, type: CCFloat, tooltip: 'Длительность роста карточки, сек' })
     popDuration: number = 0.35;
     @property({ group: { name: 'Появление' }, type: CCFloat, tooltip: 'Длительность «накрутки» суммы от $0, сек' })
@@ -75,6 +82,7 @@ export class GameOverCard extends Component {
     private earnTarget: number = 0;
     private earnTimer: number = 0;
     private earnCounting: boolean = false;
+    private _win: boolean = false;
 
     onLoad() {
         this.opacity = this.getComponent(UIOpacity) || this.addComponent(UIOpacity);
@@ -84,6 +92,26 @@ export class GameOverCard extends Component {
             this.node.setScale(0.6, 0.6, 1);
         }
     }
+
+    onEnable() {
+        if (EDITOR) return;
+        // победа или проигрыш? (экран один на оба случая)
+        const gm = GameManager.instance;
+        this._win = !!gm && gm.getState() === GameState.FINISHED;
+        // сброс состояния появления
+        this.state = 0;
+        this.timer = 0;
+        this.earnCounting = false;
+        if (this.opacity) this.opacity.opacity = 0;
+        this.node.setScale(0.6, 0.6, 1);
+        // на победе сразу убираем FAIL (его не должно быть на фоне фейерверка)
+        if (this._win && this.failNode) this.failNode.active = false;
+        this.build(); // перестроить с правильным заголовком (win/lose)
+    }
+
+    private curTitle(): string { return (!EDITOR && this._win) ? this.winTitle : this.title; }
+    private curSubtitle(): string { return (!EDITOR && this._win) ? this.winSubtitle : this.subtitle; }
+    private curDelay(): number { return this._win ? this.winAppearDelay : this.appearDelay; }
 
     private mkSprite(name: string, frame: SpriteFrame, size: Vec2, pos: Vec2): Node | null {
         if (!frame) return null;
@@ -138,8 +166,8 @@ export class GameOverCard extends Component {
         this.earnLabel.enableOutline = true;                    // чёрная обводка (чуть жирнее)
         this.earnLabel.outlineColor = new Color(0, 0, 0, 255);
         this.earnLabel.outlineWidth = 3;
-        this.styleTitle(this.mkLabel('Title', this.title, this.titleFontSize, this.titlePos));
-        this.styleTitle(this.mkLabel('Sub', this.subtitle, this.titleFontSize * 0.5, new Vec2(this.titlePos.x, this.titlePos.y - this.titleFontSize)));
+        this.styleTitle(this.mkLabel('Title', this.curTitle(), this.titleFontSize, this.titlePos));
+        this.styleTitle(this.mkLabel('Sub', this.curSubtitle(), this.titleFontSize * 0.5, new Vec2(this.titlePos.x, this.titlePos.y - this.titleFontSize)));
     }
 
     private earnText(): string {
@@ -161,7 +189,7 @@ export class GameOverCard extends Component {
         // ждём, потом плавно вырастаем
         if (this.state === 0) {
             this.timer += dt;
-            if (this.timer >= this.appearDelay) {
+            if (this.timer >= this.curDelay()) {
                 this.state = 1; this.timer = 0;
                 // запускаем «накрутку» суммы от $0 до собранного
                 const gm = GameManager.instance;
@@ -170,7 +198,7 @@ export class GameOverCard extends Component {
                 this.earnCounting = true;
                 if (this.earnLabel) this.earnLabel.string = '$0.00';
                 if (this.failNode) this.failNode.active = false;            // прячем FAIL
-                if (this.dimNode) this.dimNode.active = false;              // убираем затемнение фона
+                if (this.dimNode && !this._win) this.dimNode.active = false; // на победе ОСТАВЛЯЕМ затемнение под карточкой
                 if (this.installButton) this.installButton.active = true;   // показываем кнопку INSTALL
                 for (const n of this.hideNodes) if (n) n.active = false;     // прячем нижний баннер и др.
             }
