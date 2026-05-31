@@ -1,4 +1,5 @@
-import { _decorator, Component, Graphics, Color, CCFloat, UITransform } from 'cc';
+import { _decorator, Component, Graphics, Color, CCFloat, UITransform, Node, sys } from 'cc';
+import { EDITOR } from 'cc/env';
 const { ccclass, property, executeInEditMode } = _decorator;
 
 /**
@@ -37,11 +38,24 @@ export class RoundedRect extends Component {
     @property({ tooltip: 'Цвет НИЗА при градиенте (hex без #)' })
     bottomColorHex: string = 'E08A12';
 
+    @property({ tooltip: 'Ссылка, на которую ведёт кнопка по тапу (пусто = не кликабельна)' })
+    linkUrl: string = 'https://example.com/';
+
     private gfx: Graphics | null = null;
 
     onLoad() {
         this.ensureGraphics();
         this.redraw();
+        // CTA-кнопка: тап по фону открывает внешнюю ссылку (только в рантайме).
+        if (!EDITOR && this.linkUrl) this.node.on(Node.EventType.TOUCH_END, this.onTap, this);
+    }
+
+    onDestroy() {
+        if (!EDITOR && this.linkUrl) this.node.off(Node.EventType.TOUCH_END, this.onTap, this);
+    }
+
+    private onTap() {
+        if (this.linkUrl) sys.openURL(this.linkUrl);
     }
 
     onEnable() {

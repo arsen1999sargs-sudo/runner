@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Graphics, Label, UITransform, Vec2, Vec3, Color, CCFloat, CCObject, director } from 'cc';
+import { _decorator, Component, Node, Graphics, Label, UITransform, Vec2, Vec3, Color, CCFloat, CCObject, sys } from 'cc';
 import { EDITOR } from 'cc/env';
 import { GameManager, GameState } from './GameManager';
 const { ccclass, property, executeInEditMode } = _decorator;
@@ -15,6 +15,9 @@ export class InstallButton extends Component {
 
     @property({ tooltip: 'Текст кнопки' })
     text: string = 'INSTALL AND EARN';
+
+    @property({ tooltip: 'Ссылка, на которую ведёт кнопка по тапу (пусто = отключить переход)' })
+    linkUrl: string = 'https://example.com/';
 
     @property({ tooltip: 'Размер кнопки (px)' })
     size: Vec2 = new Vec2(540, 100);
@@ -91,8 +94,8 @@ export class InstallButton extends Component {
     }
 
     private onTap() {
-        const s = director.getScene();
-        if (s) director.loadScene(s.name); // перезапуск игры
+        // CTA-кнопка: по тапу открываем внешнюю ссылку (новая вкладка).
+        if (this.linkUrl) sys.openURL(this.linkUrl);
     }
 
     private hex(h: string): Color {

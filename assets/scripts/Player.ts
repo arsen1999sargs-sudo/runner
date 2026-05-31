@@ -1,4 +1,4 @@
-import { _decorator, Component, input, Input, EventTouch, CCFloat, Vec3 } from 'cc';
+import { _decorator, Component, input, Input, EventTouch, CCFloat, Vec3, Node, UITransform, director } from 'cc';
 import { GameManager, GameState } from './GameManager';
 import { AudioManager } from './AudioManager';
 const { ccclass, property } = _decorator;
@@ -59,9 +59,37 @@ export class Player extends Component {
         input.off(Input.EventType.TOUCH_START, this.onTouchStart, this);
     }
 
+    /** Кешированная ссылка на узел кнопки DOWNLOAD (ищем по имени один раз). */
+    private linkNode: Node | null = null;
+    private findLinkNode(): Node | null {
+        if (this.linkNode && this.linkNode.isValid) return this.linkNode;
+        const scene = director.getScene();
+        if (!scene) return null;
+        const stack: Node[] = [];
+        for (const c of scene.children) stack.push(c);
+        while (stack.length) {
+            const n = stack.pop() as Node;
+            if (n.name === 'DownloadButton') { this.linkNode = n; return n; }
+            for (const c of n.children) stack.push(c);
+        }
+        return null;
+    }
+
+    /** true, если тап попал в активную кнопку DOWNLOAD (тогда это переход по ссылке). */
+    private tapHitsLink(e: EventTouch): boolean {
+        const node = this.findLinkNode();
+        if (!node || !node.activeInHierarchy) return false;
+        const ui = node.getComponent(UITransform);
+        if (!ui) return false;
+        return ui.getBoundingBoxToWorld().contains(e.getUILocation());
+    }
+
     onTouchStart(_e: EventTouch) {
         const gm = GameManager.instance;
         if (!gm) return;
+        // Тап по кнопке DOWNLOAD — это открытие ссылки, а НЕ игровой тап:
+        // не стартуем игру и не прыгаем.
+        if (this.tapHitsLink(_e)) return;
         if (gm.getState() === GameState.IDLE) { gm.startGame(); return; }
         // пауза-подсказка перед первым врагом: тап продолжает игру И сразу прыгает над врагом
         if (gm.getState() === GameState.TUTORIAL) {

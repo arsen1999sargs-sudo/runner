@@ -5,7 +5,9 @@
       "Bash(git commit *)",
       "Bash(git branch *)",
       "Bash(git remote *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash([ -f \"$d/index.html\" ])",
+      "PowerShell(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\Arsen\\\\Desktop\\\\runner\\\\tools\\\\postbuild.ps1\")"
     ]
   }
 }
