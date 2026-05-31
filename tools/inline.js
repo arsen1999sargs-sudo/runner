@@ -1,6 +1,14 @@
 // Inliner: build/web-mobile/  ->  dist/index.html (single self-contained file)
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
+
+// Gzip large engine JS chunks (cocos-js/*.js). They are loaded ONLY via SystemJS
+// module import (async instantiate), so they can be decompressed in the browser with
+// DecompressionStream without touching the synchronous boot path. The asset-bundle
+// index.js files (assets/*/index.js) are pre-registered synchronously at startup and
+// are therefore left uncompressed.
+const GZIP = (rel) => /^cocos-js\/.*\.js$/i.test(rel);
 
 const ROOT = path.resolve(__dirname, '..');
 const BUILD = path.join(ROOT, 'build', 'web-mobile');
@@ -47,7 +55,19 @@ walk(BUILD);
 const read = (rel) => fs.readFileSync(path.join(BUILD, rel), 'utf8');
 
 const runtimeMap = {};
-for (const k of Object.keys(files)) { if (!INLINE_DIRECT.has(k)) runtimeMap[k] = files[k]; }
+let nGz = 0, gzBefore = 0, gzAfter = 0;
+for (const k of Object.keys(files)) {
+  if (INLINE_DIRECT.has(k)) continue;
+  const rec = files[k];
+  if (rec.text !== undefined && GZIP(k)) {
+    const raw = Buffer.from(rec.text, 'utf8');
+    const gz = zlib.gzipSync(raw, { level: 9 });
+    gzBefore += raw.length; gzAfter += gz.length; nGz++;
+    runtimeMap[k] = { gz: gz.toString('base64') };
+  } else {
+    runtimeMap[k] = rec;
+  }
+}
 
 const interceptor = `
 <script>
@@ -64,6 +84,15 @@ const interceptor = `
     return null;
   }
   window.__iFind__ = find;
+  function b64u8(s){ var x=atob(s), a=new Uint8Array(x.length); for(var i=0;i<x.length;i++)a[i]=x.charCodeAt(i); return a; }
+  window.__b64u8__ = b64u8;
+  // Async gunzip via DecompressionStream (used for engine JS chunks).
+  window.__gunzip__ = function(u8){
+    if (typeof DecompressionStream === 'undefined') return Promise.reject(new Error('DecompressionStream unsupported'));
+    var ds = new DecompressionStream('gzip');
+    return new Response(new Blob([u8]).stream().pipeThrough(ds)).arrayBuffer()
+      .then(function(ab){ return new TextDecoder('utf-8').decode(ab); });
+  };
   function bytes(r){ var s=atob(r.b64), a=new Uint8Array(s.length); for(var i=0;i<s.length;i++)a[i]=s.charCodeAt(i); return a; }
   function blobURL(r){
     if (r._u) return r._u;
@@ -74,7 +103,9 @@ const interceptor = `
   window.fetch = function(input, init){
     var url = (typeof input==='string') ? input : (input && input.url);
     var k = find(url);
-    if (k){ var r=F[k]; var body = (r.text!==undefined) ? r.text : bytes(r);
+    if (k){ var r=F[k];
+      if (r.gz!==undefined){ return window.__gunzip__(b64u8(r.gz)).then(function(t){ return new Response(t,{status:200,headers:{'Content-Type':'text/javascript'}}); }); }
+      var body = (r.text!==undefined) ? r.text : bytes(r);
       return Promise.resolve(new Response(body, {status:200, headers:{'Content-Type': r.mime||(r.text!==undefined?'text/plain':'application/octet-stream')}})); }
     return of ? of(input, init) : Promise.reject(new Error('offline:'+url));
   };
@@ -117,8 +148,17 @@ const overrideScript = `
 (function(){
   var S = System.constructor.prototype, orig = S.instantiate;
   S.instantiate = function(url, parent){
+    var self = this, args = arguments;
     var k = window.__iFind__ ? window.__iFind__(url) : null;
     var rec = k && window.__F__ ? window.__F__[k] : null;
+    if (rec && rec.gz !== undefined){
+      // gzipped engine chunk: decompress async, then eval + return its register.
+      return window.__gunzip__(window.__b64u8__(rec.gz)).then(function(text){
+        (0, eval)(text + '\\n//# sourceURL=' + url);
+        var reg = self.getRegister ? self.getRegister(url) : null;
+        return reg || orig.apply(self, args);
+      });
+    }
     if (rec && rec.text !== undefined){
       (0, eval)(rec.text + '\\n//# sourceURL=' + url);
       var reg = this.getRegister ? this.getRegister(url) : null;
@@ -169,4 +209,5 @@ fs.writeFileSync(OUT, html);
 
 const mb = (n) => (n / 1048576).toFixed(2);
 console.log('files: ' + (nText + nBin) + ' (' + nText + ' text, ' + nBin + ' binary), raw ' + mb(totalRaw) + ' MB');
+console.log('gzipped ' + nGz + ' engine chunk(s): ' + mb(gzBefore) + ' MB -> ' + mb(gzAfter) + ' MB');
 console.log('spine excluded: ' + EXCLUDE_SPINE + ' | OUTPUT: ' + OUT + ' | HTML size: ' + mb(fs.statSync(OUT).size) + ' MB');
