@@ -4,6 +4,7 @@ import { Pickup, PickupKind } from './Pickup';
 import { RoundedRect } from './RoundedRect';
 import { PulseScale } from './PulseScale';
 import { ManSpawner } from './ManSpawner';
+import { PraiseText } from './PraiseText';
 const { ccclass, property } = _decorator;
 
 /**
@@ -68,6 +69,9 @@ export class Spawner extends Component {
     coinArcRadius: number = 110;
     @property({ group: { name: 'Дуга монет' }, type: CCFloat, tooltip: 'Высота концов дуги над землёй (px) — концы должны попадать в зону сбора девочки' })
     coinArcBaseHeight: number = 130;
+
+    @property({ group: { name: 'Похвала' }, type: Vec3, tooltip: 'Позиция всплывающего текста (Great!/Awesome!/Fantastic!)' })
+    praisePos: Vec3 = new Vec3(0, 250, 0);
 
     @property({ type: CCFloat, tooltip: 'Общий множитель размера монет (1 = как заданы, 1.25 = на 25% крупнее)' })
     coinSizeScale: number = 1.25;
@@ -145,6 +149,7 @@ export class Spawner extends Component {
     private timer: number = 0;
     private introSpawned: number = 0;
     private nearFinishCleared: boolean = false;
+    private arcSeq: number = 0; // уникальный id для каждой дуги (для «Fantastic!»)
 
     // ---- ФИКСИРОВАННЫЙ СЦЕНАРИЙ забега (время в сек от старта таймера = после подсказки) ----
     // type: 'arc' дуга монет | 'barrier' конус | 'man' мужик | 'coin' одиночная money_coin
@@ -157,7 +162,7 @@ export class Spawner extends Component {
         { t: 5.9,  type: 'arc' },                 // 4
         { t: 7.7,  type: 'barrier' },             // 5  (1.8с после дуги)
         { t: 9.0,  type: 'man' },                 // 6
-        { t: 10.3, type: 'arc', count: 3 },       // 7 дуга из 3
+        { t: 10.3, type: 'arc' },                 // 7 стандартная дуга
         { t: 12.1, type: 'barrier' },             // 8  (1.8с после дуги)
         { t: 13.4, type: 'man' },                 // 9
         { t: 14.7, type: 'arc' },                 // 10
@@ -175,6 +180,19 @@ export class Spawner extends Component {
                 if (s === GameState.TUTORIAL) this.clearCoins();
             });
         }
+        this.createPraiseText();
+    }
+
+    /** Создаём узел всплывающей похвалы (Great!/Awesome!/Fantastic!) в верх-центре. */
+    private createPraiseText() {
+        if (PraiseText.instance) return;
+        const n = new Node('PraiseText');
+        n.layer = this.node.layer;
+        n.addComponent(UITransform);
+        n.addComponent(PraiseText);
+        const parent = this.node.parent || this.node;
+        parent.addChild(n);
+        n.setPosition(this.praisePos.x, this.praisePos.y, this.praisePos.z);
     }
 
     private clearCoins() {
@@ -195,13 +213,19 @@ export class Spawner extends Component {
         const gm = GameManager.instance;
         if (!gm || gm.getState() !== GameState.RUNNING) return;
 
+        // за clearBeforeFinish сек до финиша — чистим монеты/барьеры и больше не спавним
+        if (gm.isNearFinish()) {
+            if (!this.nearFinishCleared) { this.clearAll(); this.nearFinishCleared = true; }
+            return;
+        }
+
         // ДО подсказки: интро — только money_coin, максимум introCoinCount
         if (!gm.tutorialDone) {
             this.timer += dt;
             if (this.timer >= this.spawnInterval) {
                 this.timer = 0;
                 if (this.introSpawned < this.introCoinCount) {
-                    this.makeCoin(this.introCoinIndex, this.spawnX, this.groundY + this.coinHeight);
+                    this.makeCoin(-1, this.spawnX, this.groundY + this.coinHeight); // случайная монета (money/paypal)
                     this.introSpawned++;
                 }
             }
@@ -266,8 +290,8 @@ export class Spawner extends Component {
         if (this.obstacleLabel && this.obstacleLabel.length > 0) this.addLabel(sprite);
     }
 
-    /** Одна монета в позиции (x, y). coinIdx = -1 → случайная картинка. */
-    private makeCoin(coinIdx: number, x: number, y: number) {
+    /** Одна монета в позиции (x, y). coinIdx = -1 → случайная картинка. arcId/arcTotal — для дуги. */
+    private makeCoin(coinIdx: number, x: number, y: number, arcId: number = -1, arcTotal: number = 0) {
         if (this.coinFrames.length === 0) return;
         const idx = (coinIdx >= 0 && coinIdx < this.coinFrames.length)
             ? coinIdx
@@ -300,6 +324,8 @@ export class Spawner extends Component {
         pickup.speed = this.speed;
         pickup.player = this.player;
         pickup.radius = this.coinPickRadius;
+        pickup.arcId = arcId;
+        pickup.arcTotal = arcTotal;
 
         this.node.addChild(sprite);
         sprite.setPosition(new Vec3(x, y, 0));
@@ -310,12 +336,13 @@ export class Spawner extends Component {
         const n = Math.max(1, count ?? this.coinArcCount);
         const R = this.coinArcRadius;
         const baseY = this.groundY + this.coinArcBaseHeight;
+        const arcId = this.arcSeq++;                 // уникальный id дуги (для «Fantastic!» за всю дугу)
         for (let i = 0; i < n; i++) {
             const t = (n > 1) ? i / (n - 1) : 0.5;
             const ang = Math.PI * (1 - t);           // π → 0 (слева-направо по полукругу)
             const x = this.spawnX + R * (1 + Math.cos(ang)); // ширина дуги = 2R
             const y = baseY + R * Math.sin(ang);     // концы = baseY, верх = baseY + R
-            this.makeCoin(-1, x, y);                 // случайная картинка (money/paypal вперемешку)
+            this.makeCoin(-1, x, y, arcId, n);       // случайная картинка + группа дуги
         }
     }
 

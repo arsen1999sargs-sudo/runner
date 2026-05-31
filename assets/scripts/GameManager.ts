@@ -1,4 +1,5 @@
 import { _decorator, Component, Node, Label, Sprite, director, Color, CCFloat } from 'cc';
+import { AudioManager } from './AudioManager';
 const { ccclass, property } = _decorator;
 
 export enum GameState {
@@ -61,6 +62,13 @@ export class GameManager extends Component {
         // текст «You Won!» больше не показываем — концовку показывает карточка награды
         if (this.finishNode) this.finishNode.active = false;
         if (this.tutorialNode) this.tutorialNode.active = (newState === GameState.TUTORIAL);
+
+        // звук исхода
+        const am = AudioManager.instance;
+        if (am) {
+            if (newState === GameState.DEAD) am.playLose();
+            else if (newState === GameState.FINISHED) am.playWin();
+        }
     }
 
     public getState(): GameState { return this.state; }
@@ -87,6 +95,7 @@ export class GameManager extends Component {
         this.nearFinish = false;
         this.updateHeartsUI();
         this.updateEarningsUI();
+        if (AudioManager.instance) AudioManager.instance.playBg(); // фоновая музыка на весь забег
         this.setState(GameState.RUNNING);
     }
 

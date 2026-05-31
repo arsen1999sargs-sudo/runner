@@ -1,5 +1,6 @@
 import { _decorator, Component, input, Input, EventTouch, CCFloat, Vec3 } from 'cc';
 import { GameManager, GameState } from './GameManager';
+import { AudioManager } from './AudioManager';
 const { ccclass, property } = _decorator;
 
 /**
@@ -67,6 +68,7 @@ export class Player extends Component {
             gm.resumeFromTutorial();
             this.velocityY = this.jumpVelocity;
             this.grounded = false;
+            if (AudioManager.instance) AudioManager.instance.playJump();
             return;
         }
         if (gm.getState() !== GameState.RUNNING) return;
@@ -75,6 +77,7 @@ export class Player extends Component {
         if (this.grounded) {
             this.velocityY = this.jumpVelocity;
             this.grounded = false;
+            if (AudioManager.instance) AudioManager.instance.playJump();
         }
     }
 

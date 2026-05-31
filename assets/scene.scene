@@ -4281,7 +4281,7 @@
     "__prefab": null,
     "startX": 900,
     "targetX": -950,
-    "finishAtSec": 20,
+    "finishAtSec": 26,
     "moveSpeed": 450,
     "_id": "92C5lOePRGo46rjEcM8Aoc"
   },
@@ -4742,7 +4742,7 @@
     "coinDisplayHeight": 80,
     "coinHeights": [
       0,
-      68
+      64
     ],
     "coinValues": [
       17,
@@ -4752,7 +4752,7 @@
     "coinArc": true,
     "coinArcCount": 5,
     "coinArcRadius": 260,
-    "coinArcBaseHeight": 90,
+    "coinArcBaseHeight": 120,
     "coinSizeScale": 1.25,
     "introCoinCount": 2,
     "introCoinIndex": 1,
@@ -6352,6 +6352,7 @@
     },
     "timerFontSize": 44,
     "buttonRise": 100,
+    "winButtonRaise": 20,
     "appearDelay": 0.55,
     "winAppearDelay": 2.8,
     "popDuration": 0.35,
@@ -6400,7 +6401,7 @@
     "_lpos": {
       "__type__": "cc.Vec3",
       "x": 0,
-      "y": -330,
+      "y": -339.444,
       "z": 0
     },
     "_lrot": {

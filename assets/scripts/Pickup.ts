@@ -2,6 +2,8 @@ import { _decorator, Component, Node, CCFloat, CCInteger } from 'cc';
 import { GameManager, GameState } from './GameManager';
 import { Player } from './Player';
 import { PlayerAnimator } from './PlayerAnimator';
+import { PraiseText } from './PraiseText';
+import { AudioManager } from './AudioManager';
 const { ccclass, property } = _decorator;
 
 export enum PickupKind {
@@ -34,6 +36,10 @@ export class Pickup extends Component {
 
     @property(Node)
     player: Node = null!;
+
+    // группа дуги: arcId>=0 и arcTotal — сколько монет в дуге (для «Fantastic!» за всю дугу)
+    public arcId: number = -1;
+    public arcTotal: number = 0;
 
     private hitOnce: boolean = false;
     private despawnX: number = -500;
@@ -86,6 +92,7 @@ export class Pickup extends Component {
 
     private onHitObstacle(gm: GameManager) {
         this.hitOnce = true;
+        if (AudioManager.instance) AudioManager.instance.playHit(); // звук столкновения
         gm.loseLife();
         // реакция девочки: кадр удара (sprite_10) + покраснение
         if (this.player) {
@@ -99,6 +106,7 @@ export class Pickup extends Component {
     private onPickCoin(gm: GameManager) {
         this.hitOnce = true;
         gm.addEarnings(this.value);
+        PraiseText.reportCoin(this.arcId, this.arcTotal); // всплывающая похвала
         this.node.destroy();
     }
 }

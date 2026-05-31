@@ -111,6 +111,12 @@ export class ManSpawner extends Component {
         const gm = GameManager.instance;
         if (!gm || gm.getState() !== GameState.RUNNING) return;
 
+        // за clearBeforeFinish сек до финиша — убираем всех мужиков и больше не спавним
+        if (gm.isNearFinish()) {
+            if (!this.nearFinishCleared) { this.clearMen(); this.nearFinishCleared = true; }
+            return;
+        }
+
         // обучающая пауза: первый (учебный) мужик подбежал близко → пауза + подсказка
         if (this.tutorialOnFirst && this.tutorialMan && this.tutorialMan.isValid && this.player) {
             const dx = this.tutorialMan.worldPosition.x - this.player.worldPosition.x;
