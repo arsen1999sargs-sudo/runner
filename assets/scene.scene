@@ -23,7 +23,7 @@
     "_active": true,
     "_components": [],
     "_prefab": {
-      "__id__": 200
+      "__id__": 203
     },
     "_lpos": {
       "__type__": "cc.Vec3",
@@ -54,7 +54,7 @@
     },
     "autoReleaseAssets": false,
     "_globals": {
-      "__id__": 201
+      "__id__": 204
     },
     "_id": "150e3470-d964-4dec-9f89-aa51b6e6eb28"
   },
@@ -81,18 +81,21 @@
       },
       {
         "__id__": 194
+      },
+      {
+        "__id__": 197
       }
     ],
     "_active": true,
     "_components": [
       {
-        "__id__": 197
+        "__id__": 200
       },
       {
-        "__id__": 198
+        "__id__": 201
       },
       {
-        "__id__": 199
+        "__id__": 202
       }
     ],
     "_prefab": null,
@@ -4753,6 +4756,12 @@
     "coinArcCount": 5,
     "coinArcRadius": 260,
     "coinArcBaseHeight": 120,
+    "praisePos": {
+      "__type__": "cc.Vec3",
+      "x": 0,
+      "y": 250,
+      "z": 0
+    },
     "coinSizeScale": 1.25,
     "introCoinCount": 2,
     "introCoinIndex": 1,
@@ -7412,6 +7421,110 @@
     "_id": "f9Vej+hNFEH5Fij7t3iFfO"
   },
   {
+    "__type__": "cc.Node",
+    "_name": "AudioManager",
+    "_objFlags": 0,
+    "__editorExtras__": {},
+    "_parent": {
+      "__id__": 2
+    },
+    "_children": [],
+    "_active": true,
+    "_components": [
+      {
+        "__id__": 198
+      },
+      {
+        "__id__": 199
+      }
+    ],
+    "_prefab": null,
+    "_lpos": {
+      "__type__": "cc.Vec3",
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "_lrot": {
+      "__type__": "cc.Quat",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "w": 1
+    },
+    "_lscale": {
+      "__type__": "cc.Vec3",
+      "x": 1,
+      "y": 1,
+      "z": 1
+    },
+    "_mobility": 0,
+    "_layer": 33554432,
+    "_euler": {
+      "__type__": "cc.Vec3",
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "_id": "0fyJRVtGBB35WHNYEn0pw+"
+  },
+  {
+    "__type__": "cc.UITransform",
+    "_name": "",
+    "_objFlags": 0,
+    "__editorExtras__": {},
+    "node": {
+      "__id__": 197
+    },
+    "_enabled": true,
+    "__prefab": null,
+    "_contentSize": {
+      "__type__": "cc.Size",
+      "width": 100,
+      "height": 100
+    },
+    "_anchorPoint": {
+      "__type__": "cc.Vec2",
+      "x": 0.5,
+      "y": 0.5
+    },
+    "_id": "9840a74RhAtoonc/lHJ6um"
+  },
+  {
+    "__type__": "beec6bojApM2LXmyoHjUijl",
+    "_name": "",
+    "_objFlags": 0,
+    "__editorExtras__": {},
+    "node": {
+      "__id__": 197
+    },
+    "_enabled": true,
+    "__prefab": null,
+    "bgMusic": {
+      "__uuid__": "e07b908d-088a-4960-a727-6d6103307d5b",
+      "__expectedType__": "cc.AudioClip"
+    },
+    "jumpSfx": {
+      "__uuid__": "a66c9479-7592-4778-b56e-cf3b7a2565e6",
+      "__expectedType__": "cc.AudioClip"
+    },
+    "hitSfx": {
+      "__uuid__": "f9bda583-6353-4a65-b23f-b0b84c8c0c8f",
+      "__expectedType__": "cc.AudioClip"
+    },
+    "loseSfx": {
+      "__uuid__": "8050849a-b11d-45e9-b89f-2f901668852b",
+      "__expectedType__": "cc.AudioClip"
+    },
+    "winSfx": {
+      "__uuid__": "d150e0b5-567a-43f0-8a9b-3e86481c177a",
+      "__expectedType__": "cc.AudioClip"
+    },
+    "bgVolume": 0.5,
+    "sfxVolume": 1,
+    "_id": "bfP8ZPBspB8LzubCIFmopE"
+  },
+  {
     "__type__": "cc.UITransform",
     "_name": "",
     "_objFlags": 0,
@@ -7490,28 +7603,28 @@
   {
     "__type__": "cc.SceneGlobals",
     "ambient": {
-      "__id__": 202
-    },
-    "shadows": {
-      "__id__": 203
-    },
-    "_skybox": {
-      "__id__": 204
-    },
-    "fog": {
       "__id__": 205
     },
-    "octree": {
+    "shadows": {
       "__id__": 206
     },
-    "skin": {
+    "_skybox": {
       "__id__": 207
     },
-    "lightProbeInfo": {
+    "fog": {
       "__id__": 208
     },
-    "postSettings": {
+    "octree": {
       "__id__": 209
+    },
+    "skin": {
+      "__id__": 210
+    },
+    "lightProbeInfo": {
+      "__id__": 211
+    },
+    "postSettings": {
+      "__id__": 212
     },
     "bakedWithStationaryMainLight": false,
     "bakedWithHighpLightmap": false

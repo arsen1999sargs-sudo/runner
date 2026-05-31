@@ -70,7 +70,7 @@ export class Spawner extends Component {
     @property({ group: { name: 'Дуга монет' }, type: CCFloat, tooltip: 'Высота концов дуги над землёй (px) — концы должны попадать в зону сбора девочки' })
     coinArcBaseHeight: number = 130;
 
-    @property({ group: { name: 'Похвала' }, type: Vec3, tooltip: 'Позиция всплывающего текста (Great!/Awesome!/Fantastic!)' })
+    @property({ group: { name: 'Похвала' }, tooltip: 'Позиция всплывающего текста (Great!/Awesome!/Fantastic!)' })
     praisePos: Vec3 = new Vec3(0, 250, 0);
 
     @property({ type: CCFloat, tooltip: 'Общий множитель размера монет (1 = как заданы, 1.25 = на 25% крупнее)' })
