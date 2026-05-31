@@ -3,6 +3,7 @@ import { GameManager, GameState } from './GameManager';
 import { Pickup, PickupKind } from './Pickup';
 import { RoundedRect } from './RoundedRect';
 import { PulseScale } from './PulseScale';
+import { ManSpawner } from './ManSpawner';
 const { ccclass, property } = _decorator;
 
 /**
@@ -57,6 +58,19 @@ export class Spawner extends Component {
 
     @property({ type: CCFloat, tooltip: 'Радиус сбора монеты (больше = легче собрать; не влияет на препятствия)' })
     coinPickRadius: number = 100;
+
+    // ---- Дуга монет (полукруг) ----
+    @property({ group: { name: 'Дуга монет' }, tooltip: 'Спавнить монеты дугой (полукругом), а не по одной' })
+    coinArc: boolean = true;
+    @property({ group: { name: 'Дуга монет' }, type: CCInteger, tooltip: 'Сколько монет в дуге' })
+    coinArcCount: number = 6;
+    @property({ group: { name: 'Дуга монет' }, type: CCFloat, tooltip: 'Радиус дуги = высота арки над концами (px)' })
+    coinArcRadius: number = 110;
+    @property({ group: { name: 'Дуга монет' }, type: CCFloat, tooltip: 'Высота концов дуги над землёй (px) — концы должны попадать в зону сбора девочки' })
+    coinArcBaseHeight: number = 130;
+
+    @property({ type: CCFloat, tooltip: 'Общий множитель размера монет (1 = как заданы, 1.25 = на 25% крупнее)' })
+    coinSizeScale: number = 1.25;
 
     @property({ group: { name: 'Интро (до первого врага)' }, type: CCInteger, tooltip: 'Сколько money_coin спавнить в начале до встречи с мужиком' })
     introCoinCount: number = 2;
@@ -132,6 +146,27 @@ export class Spawner extends Component {
     private introSpawned: number = 0;
     private nearFinishCleared: boolean = false;
 
+    // ---- ФИКСИРОВАННЫЙ СЦЕНАРИЙ забега (время в сек от старта таймера = после подсказки) ----
+    // type: 'arc' дуга монет | 'barrier' конус | 'man' мужик | 'coin' одиночная money_coin
+    private seqIdx: number = 0;
+    private timeline: { t: number, type: string, count?: number }[] = [
+        { t: 1.2,  type: 'arc' },                 // 1
+        { t: 3.0,  type: 'barrier' },             // 2  (1.8с после дуги)
+        { t: 4.3,  type: 'coin' },                // 3a случайная монета
+        { t: 4.4,  type: 'man' },                 // 3b мужик (почти вместе)
+        { t: 5.9,  type: 'arc' },                 // 4
+        { t: 7.7,  type: 'barrier' },             // 5  (1.8с после дуги)
+        { t: 9.0,  type: 'man' },                 // 6
+        { t: 10.3, type: 'arc', count: 3 },       // 7 дуга из 3
+        { t: 12.1, type: 'barrier' },             // 8  (1.8с после дуги)
+        { t: 13.4, type: 'man' },                 // 9
+        { t: 14.7, type: 'arc' },                 // 10
+        { t: 16.5, type: 'barrier' },             // 11 (1.8с после дуги)
+        { t: 17.8, type: 'man' },                 // 12
+        { t: 19.1, type: 'arc' },                 // 13
+        { t: 20.9, type: 'barrier' },             // 14 (1.8с после дуги)
+    ];
+
     start() {
         const gm = GameManager.instance;
         if (gm) {
@@ -160,24 +195,34 @@ export class Spawner extends Component {
         const gm = GameManager.instance;
         if (!gm || gm.getState() !== GameState.RUNNING) return;
 
-        // последние секунды перед финишем — ничего не спавним, чистим монеты/конусы
-        if (gm.isNearFinish()) {
-            if (!this.nearFinishCleared) { this.clearAll(); this.nearFinishCleared = true; }
+        // ДО подсказки: интро — только money_coin, максимум introCoinCount
+        if (!gm.tutorialDone) {
+            this.timer += dt;
+            if (this.timer >= this.spawnInterval) {
+                this.timer = 0;
+                if (this.introSpawned < this.introCoinCount) {
+                    this.makeCoin(this.introCoinIndex, this.spawnX, this.groundY + this.coinHeight);
+                    this.introSpawned++;
+                }
+            }
             return;
         }
 
-        this.timer += dt;
-        if (this.timer >= this.spawnInterval) {
-            this.timer = 0;
-            if (!gm.tutorialDone) {
-                // интро до первого врага: только money_coin, максимум introCoinCount, без препятствий
-                if (this.introSpawned < this.introCoinCount) {
-                    this.spawnOne(this.introCoinIndex);
-                    this.introSpawned++;
-                }
-            } else {
-                this.spawnOne();
-            }
+        // ПОСЛЕ подсказки: фиксированный сценарий по времени забега (runElapsed)
+        const t = gm.getRunElapsed();
+        while (this.seqIdx < this.timeline.length && t >= this.timeline[this.seqIdx].t) {
+            this.fireEvent(this.timeline[this.seqIdx]);
+            this.seqIdx++;
+        }
+    }
+
+    /** Выполнить одно событие сценария. */
+    private fireEvent(e: { t: number, type: string, count?: number }) {
+        switch (e.type) {
+            case 'arc':     this.spawnCoinArc(e.count); break;
+            case 'barrier': this.makeObstacle(); break;
+            case 'man':     ManSpawner.instance?.spawnMan(); break;
+            case 'coin':    this.makeCoin(-1, this.spawnX, this.groundY + this.coinHeight); break; // случайная монета (money/paypal)
         }
     }
 
@@ -185,64 +230,92 @@ export class Spawner extends Component {
         const intro = introCoinIdx >= 0;
         const isObstacle = intro ? false : (Math.random() < this.obstacleChance);
 
-        const sprite = new Node(isObstacle ? 'Obstacle' : 'Coin');
-        sprite.layer = this.node.layer;
-
-        // для монеты выбираем картинку: в интро — фиксированный money_coin, иначе случайно
-        let coinFrame: SpriteFrame | null = null;
-        let coinIdx = -1;
-        if (!isObstacle && this.coinFrames.length > 0) {
-            coinIdx = intro ? introCoinIdx : Math.floor(Math.random() * this.coinFrames.length);
-            coinFrame = this.coinFrames[coinIdx];
-        }
-
-        const ui = sprite.addComponent(UITransform);
-
-        const sp = sprite.addComponent(Sprite);
-        sp.spriteFrame = isObstacle ? this.obstacleFrame : coinFrame;
-        sp.sizeMode = Sprite.SizeMode.CUSTOM;   // ВАЖНО: иначе размер берётся из картинки
-        sp.color = new Color(255, 255, 255, 255);
-
-        // задаём размер ПОСЛЕ CUSTOM, чтобы он применился
         if (isObstacle) {
-            ui.setContentSize(this.obstacleSizeW, this.obstacleSizeH);
-        } else if (coinFrame) {
-            // высота: своя для каждого элемента (coinHeights[idx]) или общая
-            let h = this.coinDisplayHeight;
-            if (coinIdx >= 0 && coinIdx < this.coinHeights.length && this.coinHeights[coinIdx] > 0) {
-                h = this.coinHeights[coinIdx];
-            }
-            const aspect = coinFrame.rect.width / coinFrame.rect.height;
-            ui.setContentSize(h * aspect, h);
-        } else {
-            ui.setContentSize(60, 60);
+            this.makeObstacle();
+            return;
         }
 
-        // значение монеты: своё для каждого элемента (coinValues[idx]) или 0.5
-        let coinValue = 0.5;
-        if (coinIdx >= 0 && coinIdx < this.coinValues.length && this.coinValues[coinIdx] > 0) {
-            coinValue = this.coinValues[coinIdx];
+        // монеты: дугой (полукругом) — кроме интро (там по одной)
+        if (!intro && this.coinArc && this.coinFrames.length > 0) {
+            this.spawnCoinArc();
+        } else {
+            this.makeCoin(intro ? introCoinIdx : -1, this.spawnX, this.groundY + this.coinHeight);
         }
+    }
+
+    /** Барьер (конус) на линии земли. */
+    private makeObstacle() {
+        const sprite = new Node('Obstacle');
+        sprite.layer = this.node.layer;
+        const ui = sprite.addComponent(UITransform);
+        const sp = sprite.addComponent(Sprite);
+        sp.spriteFrame = this.obstacleFrame;
+        sp.sizeMode = Sprite.SizeMode.CUSTOM;
+        sp.color = new Color(255, 255, 255, 255);
+        ui.setContentSize(this.obstacleSizeW, this.obstacleSizeH);
 
         const pickup = sprite.addComponent(Pickup);
-        pickup.kind = isObstacle ? PickupKind.OBSTACLE : PickupKind.COIN;
-        pickup.value = isObstacle ? 0 : coinValue;
+        pickup.kind = PickupKind.OBSTACLE;
+        pickup.value = 0;
         pickup.speed = this.speed;
         pickup.player = this.player;
-        if (!isObstacle) pickup.radius = this.coinPickRadius; // монеты собираются щедрее
 
         this.node.addChild(sprite);
+        sprite.setPosition(new Vec3(this.spawnX, this.groundY + this.obstacleSizeH / 2, 0));
 
-        // основание конуса стоит на линии земли (groundY): центр = groundY + половина высоты
-        // монета — выше земли
-        const y = isObstacle
-            ? this.groundY + this.obstacleSizeH / 2
-            : this.groundY + this.coinHeight;
-        sprite.setPosition(new Vec3(this.spawnX, y, 0));
+        if (this.obstacleLabel && this.obstacleLabel.length > 0) this.addLabel(sprite);
+    }
 
-        // подпись над барьером
-        if (isObstacle && this.obstacleLabel && this.obstacleLabel.length > 0) {
-            this.addLabel(sprite);
+    /** Одна монета в позиции (x, y). coinIdx = -1 → случайная картинка. */
+    private makeCoin(coinIdx: number, x: number, y: number) {
+        if (this.coinFrames.length === 0) return;
+        const idx = (coinIdx >= 0 && coinIdx < this.coinFrames.length)
+            ? coinIdx
+            : Math.floor(Math.random() * this.coinFrames.length);
+        const coinFrame = this.coinFrames[idx];
+        if (!coinFrame) return;
+
+        const sprite = new Node('Coin');
+        sprite.layer = this.node.layer;
+        const ui = sprite.addComponent(UITransform);
+        const sp = sprite.addComponent(Sprite);
+        sp.spriteFrame = coinFrame;
+        sp.sizeMode = Sprite.SizeMode.CUSTOM;
+        sp.color = new Color(255, 255, 255, 255);
+
+        // высота: своя для каждого элемента (coinHeights[idx]) или общая, × общий множитель
+        let h = this.coinDisplayHeight;
+        if (idx < this.coinHeights.length && this.coinHeights[idx] > 0) h = this.coinHeights[idx];
+        h *= this.coinSizeScale;
+        const aspect = coinFrame.rect.width / coinFrame.rect.height;
+        ui.setContentSize(h * aspect, h);
+
+        // значение: своё для элемента (coinValues[idx]) или 0.5
+        let coinValue = 0.5;
+        if (idx < this.coinValues.length && this.coinValues[idx] > 0) coinValue = this.coinValues[idx];
+
+        const pickup = sprite.addComponent(Pickup);
+        pickup.kind = PickupKind.COIN;
+        pickup.value = coinValue;
+        pickup.speed = this.speed;
+        pickup.player = this.player;
+        pickup.radius = this.coinPickRadius;
+
+        this.node.addChild(sprite);
+        sprite.setPosition(new Vec3(x, y, 0));
+    }
+
+    /** Дуга (полукруг) из монет: концы у земли, верх — над. Едут влево как единая арка. */
+    private spawnCoinArc(count?: number) {
+        const n = Math.max(1, count ?? this.coinArcCount);
+        const R = this.coinArcRadius;
+        const baseY = this.groundY + this.coinArcBaseHeight;
+        for (let i = 0; i < n; i++) {
+            const t = (n > 1) ? i / (n - 1) : 0.5;
+            const ang = Math.PI * (1 - t);           // π → 0 (слева-направо по полукругу)
+            const x = this.spawnX + R * (1 + Math.cos(ang)); // ширина дуги = 2R
+            const y = baseY + R * Math.sin(ang);     // концы = baseY, верх = baseY + R
+            this.makeCoin(-1, x, y);                 // случайная картинка (money/paypal вперемешку)
         }
     }
 

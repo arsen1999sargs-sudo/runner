@@ -56,6 +56,22 @@ export class GameOverCard extends Component {
     @property({ group: { name: 'Раскладка' }, type: CCFloat, tooltip: 'Скорость вращения лучей, градусов/сек (0 = не крутятся)' })
     lightSpin: number = 20;
 
+    // ---- Таймер выплаты (обратный отсчёт) ----
+    @property({ group: { name: 'Таймер выплаты' }, tooltip: 'Показывать таймер обратного отсчёта' })
+    showTimer: boolean = true;
+    @property({ group: { name: 'Таймер выплаты' }, type: CCFloat, tooltip: 'Старт отсчёта, сек (60 = 1 минута)' })
+    timerSeconds: number = 60;
+    @property({ group: { name: 'Таймер выплаты' }, tooltip: 'Текст под таймером' })
+    timerText: string = 'Next payment in one minute';
+    @property({ group: { name: 'Таймер выплаты' }, type: Vec2, tooltip: 'Позиция таймера (между картой и кнопкой)' })
+    timerPos: Vec2 = new Vec2(0, -130);
+    @property({ group: { name: 'Таймер выплаты' }, type: CCFloat, tooltip: 'Размер цифр таймера' })
+    timerFontSize: number = 44;
+    @property({ group: { name: 'Таймер выплаты' }, type: CCFloat, tooltip: 'На сколько px поднять кнопку, когда таймер исчезнет' })
+    buttonRise: number = 90;
+    @property({ group: { name: 'Таймер выплаты' }, type: CCFloat, tooltip: 'На сколько px поднять кнопку на ПОБЕДЕ (пока идёт таймер)' })
+    winButtonRaise: number = 20;
+
     @property({ group: { name: 'Появление' }, type: CCFloat, tooltip: 'Задержка перед появлением (после роста FAIL), сек' })
     appearDelay: number = 0.55;
     @property({ group: { name: 'Появление' }, type: CCFloat, tooltip: 'Задержка появления на ПОБЕДЕ (= длительность фейерверка), сек' })
@@ -83,9 +99,21 @@ export class GameOverCard extends Component {
     private earnTimer: number = 0;
     private earnCounting: boolean = false;
     private _win: boolean = false;
+    private timerLabel: Label | null = null;
+    private timerTextLabel: Label | null = null;
+    private timeLeft: number = 0;
+    private timerDone: boolean = false;
+    private buttonMoved: boolean = false;
+    private buttonBaseY: number = 0;
+    private buttonBaseSet: boolean = false;
 
     onLoad() {
         this.opacity = this.getComponent(UIOpacity) || this.addComponent(UIOpacity);
+        // запоминаем БАЗОВУЮ позицию кнопки (из сцены), пока её никто не двигал
+        if (!EDITOR && this.installButton) {
+            this.buttonBaseY = this.installButton.position.y;
+            this.buttonBaseSet = true;
+        }
         this.build();
         if (!EDITOR) {
             this.opacity.opacity = 0;     // скрыта до появления
@@ -102,11 +130,25 @@ export class GameOverCard extends Component {
         this.state = 0;
         this.timer = 0;
         this.earnCounting = false;
+        this.timeLeft = this.timerSeconds;
+        this.timerDone = false;
+        this.buttonMoved = false;
         if (this.opacity) this.opacity.opacity = 0;
         this.node.setScale(0.6, 0.6, 1);
         // на победе сразу убираем FAIL (его не должно быть на фоне фейерверка)
         if (this._win && this.failNode) this.failNode.active = false;
         this.build(); // перестроить с правильным заголовком (win/lose)
+
+        // позиция кнопки: ВСЕГДА сбрасываем на базу (иначе сдвиг при загрузке сцены остаётся).
+        // победа → кнопка на базе (низко), таймер сверху, поднимется при нуле;
+        // проигрыш → сразу база+подъём (под карту), таймера нет.
+        if (this.installButton && this.buttonBaseSet) {
+            const p = this.installButton.position;
+            // победа → база + winButtonRaise (чуть выше, но место таймеру есть); проигрыш → под карту
+            const y = this._win ? (this.buttonBaseY + this.winButtonRaise) : (this.buttonBaseY + this.buttonRise);
+            this.installButton.setPosition(p.x, y, p.z);
+            this.buttonMoved = !this._win; // на проигрыше уже подняли; на победе поднимет таймер
+        }
     }
 
     private curTitle(): string { return (!EDITOR && this._win) ? this.winTitle : this.title; }
@@ -168,6 +210,24 @@ export class GameOverCard extends Component {
         this.earnLabel.outlineWidth = 3;
         this.styleTitle(this.mkLabel('Title', this.curTitle(), this.titleFontSize, this.titlePos));
         this.styleTitle(this.mkLabel('Sub', this.curSubtitle(), this.titleFontSize * 0.5, new Vec2(this.titlePos.x, this.titlePos.y - this.titleFontSize)));
+
+        // таймер выплаты (цифры) + текст под ним — ТОЛЬКО на победе (в редакторе — для предпросмотра)
+        this.timerLabel = null;
+        this.timerTextLabel = null;
+        if (this.showTimer && (EDITOR || this._win)) {
+            this.timerLabel = this.mkLabel('Timer', this.fmtTime(this.timerSeconds), this.timerFontSize, this.timerPos);
+            this.styleTitle(this.timerLabel);
+            this.timerTextLabel = this.mkLabel('TimerText', this.timerText, this.timerFontSize * 0.42,
+                new Vec2(this.timerPos.x, this.timerPos.y - this.timerFontSize * 0.85));
+            this.styleTitle(this.timerTextLabel);
+        }
+    }
+
+    private fmtTime(s: number): string {
+        s = Math.max(0, Math.ceil(s));
+        const m = Math.floor(s / 60);
+        const sec = s % 60;
+        return `${m < 10 ? '0' : ''}${m}:${sec < 10 ? '0' : ''}${sec}`;
     }
 
     private earnText(): string {
@@ -181,7 +241,8 @@ export class GameOverCard extends Component {
             const h = `${this.lightPos.x},${this.lightPos.y},${this.lightSize.x},${this.lightSize.y},`
                 + `${this.cardPos.x},${this.cardPos.y},${this.cardSize.x},${this.cardSize.y},`
                 + `${this.earnPos.x},${this.earnPos.y},${this.earnFontSize},${this.titlePos.x},${this.titlePos.y},${this.titleFontSize},`
-                + `${this.title},${this.subtitle}`;
+                + `${this.title},${this.subtitle},`
+                + `${this.showTimer},${this.timerSeconds},${this.timerText},${this.timerPos.x},${this.timerPos.y},${this.timerFontSize}`;
             if (h !== this.lastHash) { this.build(); this.lastHash = h; }
             return;
         }
@@ -224,6 +285,24 @@ export class GameOverCard extends Component {
         // лучи света медленно крутятся
         if (this.lightNode && this.lightSpin !== 0) {
             this.lightNode.angle += this.lightSpin * dt;
+        }
+
+        // таймер выплаты: только на ПОБЕДЕ, идёт когда карточка появилась (state 2)
+        if (this.showTimer && this._win && !this.timerDone && this.state === 2) {
+            this.timeLeft -= dt;
+            if (this.timerLabel) this.timerLabel.string = this.fmtTime(this.timeLeft);
+            if (this.timeLeft <= 0) {
+                this.timerDone = true;
+                // таймер и текст исчезают
+                if (this.timerLabel) this.timerLabel.node.active = false;
+                if (this.timerTextLabel) this.timerTextLabel.node.active = false;
+                // жёлтая кнопка встаёт под карту (на место исчезнувшего таймера)
+                if (this.installButton && this.buttonBaseSet && !this.buttonMoved) {
+                    const p = this.installButton.position;
+                    this.installButton.setPosition(p.x, this.buttonBaseY + this.buttonRise, p.z);
+                    this.buttonMoved = true;
+                }
+            }
         }
     }
 }

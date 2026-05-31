@@ -82,6 +82,10 @@ export class ManSpawner extends Component {
     private tutorialMan: Node | null = null;
     private nearFinishCleared: boolean = false;
 
+    // доступ из сценария (Spawner вызывает spawnMan по таймлайну)
+    public static instance: ManSpawner | null = null;
+    onLoad() { ManSpawner.instance = this; }
+
     private clearMen() {
         const kids = [...this.node.children];
         for (const c of kids) {
@@ -107,18 +111,7 @@ export class ManSpawner extends Component {
         const gm = GameManager.instance;
         if (!gm || gm.getState() !== GameState.RUNNING) return;
 
-        // последние секунды перед финишем — мужиков не спавним, существующих убираем
-        if (gm.isNearFinish()) {
-            if (!this.nearFinishCleared) { this.clearMen(); this.nearFinishCleared = true; }
-            return;
-        }
-
-        if (!this.started) {
-            this.started = true;
-            this.timer = this.spawnInterval - this.firstDelay; // первая задержка
-        }
-
-        // обучающая пауза: первый мужик подбежал близко → замираем и показываем подсказку
+        // обучающая пауза: первый (учебный) мужик подбежал близко → пауза + подсказка
         if (this.tutorialOnFirst && this.tutorialMan && this.tutorialMan.isValid && this.player) {
             const dx = this.tutorialMan.worldPosition.x - this.player.worldPosition.x;
             if (dx <= this.tutorialTriggerDist) {
@@ -127,14 +120,22 @@ export class ManSpawner extends Component {
             }
         }
 
-        this.timer += dt;
-        if (this.timer >= this.spawnInterval) {
-            this.timer = 0;
-            this.spawnMan();
+        // авто-спавн ТОЛЬКО учебного мужика (до прохождения подсказки).
+        // После подсказки мужиков спавнит сценарий (Spawner.fireEvent → spawnMan).
+        if (!gm.tutorialDone && this.spawnedCount === 0) {
+            if (!this.started) {
+                this.started = true;
+                this.timer = this.spawnInterval - this.firstDelay; // первая задержка
+            }
+            this.timer += dt;
+            if (this.timer >= this.spawnInterval) {
+                this.timer = 0;
+                this.spawnMan();
+            }
         }
     }
 
-    private spawnMan() {
+    public spawnMan() {
         if (!this.atlas) { console.warn('[ManSpawner] не задан atlas'); return; }
 
         const node = new Node('Man');
