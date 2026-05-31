@@ -8,7 +8,8 @@ CTA-карточка (PayPal, «INSTALL AND EARN»). Вся игра упако�
 ## Ссылки
 - **Игра (GitHub Pages):** https://arsen1999sargs-sudo.github.io/runner/
 - **Репозиторий:** https://github.com/arsen1999sargs-sudo/runner
-- **Финальный файл:** [`dist/index.html`](dist/index.html) (он же `docs/index.html` для Pages)
+- **Финальный HTML-файл (прямая ссылка):** https://raw.githubusercontent.com/arsen1999sargs-sudo/runner/main/docs/index.html
+  (он же [`docs/index.html`](docs/index.html) в репозитории; локально собирается в `dist/index.html`)
 
 ## Стек
 - **Cocos Creator 3.8.8**, TypeScript, сборка **Web Mobile** (SystemJS + import-map).
