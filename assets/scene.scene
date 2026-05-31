@@ -7501,19 +7501,19 @@
     "_enabled": true,
     "__prefab": null,
     "bgMusic": {
-      "__uuid__": "e07b908d-088a-4960-a727-6d6103307d5b",
+      "__uuid__": "957f1fe5-bb1e-4112-ab65-444757008991",
       "__expectedType__": "cc.AudioClip"
     },
     "jumpSfx": {
-      "__uuid__": "a66c9479-7592-4778-b56e-cf3b7a2565e6",
+      "__uuid__": "044d8122-b14a-403f-951f-dd465b76541b",
       "__expectedType__": "cc.AudioClip"
     },
     "hitSfx": {
-      "__uuid__": "f9bda583-6353-4a65-b23f-b0b84c8c0c8f",
+      "__uuid__": "d494c05a-194e-4cfa-a62f-bd3014f9582f",
       "__expectedType__": "cc.AudioClip"
     },
     "loseSfx": {
-      "__uuid__": "8050849a-b11d-45e9-b89f-2f901668852b",
+      "__uuid__": "e203ce88-5b6d-4e7c-9e6e-6d5944d014e3",
       "__expectedType__": "cc.AudioClip"
     },
     "winSfx": {
