@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, CCFloat, CCInteger, Color, Sprite, SpriteAtlas, UITransform, Vec3 } from 'cc';
+import { _decorator, Component, Node, CCFloat, CCInteger, Color, Sprite, SpriteAtlas, UITransform, Vec3, view } from 'cc';
 import { GameManager, GameState } from './GameManager';
 import { Pickup, PickupKind } from './Pickup';
 import { AtlasRunner } from './AtlasRunner';
@@ -25,8 +25,16 @@ export class ManSpawner extends Component {
     @property({ type: CCFloat, tooltip: 'Задержка перед первым появлением, сек' })
     firstDelay: number = 3;
 
-    @property({ type: CCFloat, tooltip: 'X появления (правый край+)' })
+    @property({ type: CCFloat, tooltip: 'X появления (правый край+). Легаси: теперь вычисляется из ширины экрана, см. spawnMargin' })
     spawnX: number = 650;
+
+    @property({ type: CCFloat, tooltip: 'Запас за правым краем экрана, где появляется мужик (px) — спавн за пределами видимой области при любой ширине' })
+    spawnMargin: number = 300;
+
+    /** X спавна = правый край видимой области + запас (мужик появляется ЗА экраном). */
+    private spawnEdgeX(): number {
+        return view.getVisibleSize().width / 2 + this.spawnMargin;
+    }
 
     @property({ type: CCFloat, tooltip: 'Линия земли (ноги мужика), если matchPlayerGround выключен' })
     groundY: number = -270;
@@ -111,11 +119,8 @@ export class ManSpawner extends Component {
         const gm = GameManager.instance;
         if (!gm || gm.getState() !== GameState.RUNNING) return;
 
-        // за clearBeforeFinish сек до финиша — убираем всех мужиков и больше не спавним
-        if (gm.isNearFinish()) {
-            if (!this.nearFinishCleared) { this.clearMen(); this.nearFinishCleared = true; }
-            return;
-        }
+        // когда выехал финиш — больше НЕ спавним. Существующие мужики уезжают за край сами.
+        if (gm.isNearFinish()) return;
 
         // обучающая пауза: первый (учебный) мужик подбежал близко → пауза + подсказка
         if (this.tutorialOnFirst && this.tutorialMan && this.tutorialMan.isValid && this.player) {
@@ -189,7 +194,7 @@ export class ManSpawner extends Component {
         if (this.matchPlayerGround && this.pCached) {
             spawnY = this.pFeetY - this.node.worldPosition.y + this.groundOffset; // в локальные координаты спавнера
         }
-        node.setPosition(new Vec3(this.spawnX, spawnY, 0));
+        node.setPosition(new Vec3(this.spawnEdgeX(), spawnY, 0));
 
         // первый мужик — «учебный»: по приближении поставит обучающую паузу
         this.spawnedCount++;

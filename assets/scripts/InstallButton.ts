@@ -1,6 +1,7 @@
-import { _decorator, Component, Node, Graphics, Label, UITransform, Vec2, Vec3, Color, CCFloat, CCObject, sys } from 'cc';
+import { _decorator, Component, Node, Graphics, Label, UITransform, Vec2, Vec3, Color, CCFloat, CCObject } from 'cc';
 import { EDITOR } from 'cc/env';
 import { GameManager, GameState } from './GameManager';
+import { openStoreLink } from './AdLink';
 const { ccclass, property, executeInEditMode } = _decorator;
 
 /**
@@ -94,8 +95,8 @@ export class InstallButton extends Component {
     }
 
     private onTap() {
-        // CTA-кнопка: по тапу открываем внешнюю ссылку (новая вкладка).
-        if (this.linkUrl) sys.openURL(this.linkUrl);
+        // CTA-кнопка: по тапу открываем ссылку по правилам рекламных сетей (MRAID и т.п.).
+        if (this.linkUrl) openStoreLink(this.linkUrl);
     }
 
     private hex(h: string): Color {

@@ -1,4 +1,4 @@
-import { _decorator, Component, CCFloat } from 'cc';
+import { _decorator, Component, CCFloat, view } from 'cc';
 import { GameManager, GameState } from './GameManager';
 const { ccclass, property } = _decorator;
 
@@ -11,8 +11,16 @@ const { ccclass, property } = _decorator;
 @ccclass('FinishMover')
 export class FinishMover extends Component {
 
-    @property({ type: CCFloat, tooltip: 'X за правым краем экрана (откуда выезжает)' })
+    @property({ type: CCFloat, tooltip: 'X за правым краем экрана (откуда выезжает). Легаси: теперь вычисляется из ширины экрана, см. startMargin' })
     startX: number = 900;
+
+    @property({ type: CCFloat, tooltip: 'Запас за правым краем, откуда выезжает финиш (px). Должен быть больше запаса спавна объектов (160/300), чтобы финиш ехал ПОЗАДИ всех объектов' })
+    startMargin: number = 450;
+
+    /** X старта финиша = правый край видимой области + запас (за экраном, позади всех объектов). */
+    private startEdgeX(): number {
+        return view.getVisibleSize().width / 2 + this.startMargin;
+    }
 
     @property({ type: CCFloat, tooltip: 'X у девочки (где финиш останавливается)' })
     targetX: number = -210;
@@ -27,17 +35,19 @@ export class FinishMover extends Component {
 
     onLoad() {
         const p = this.node.position;
-        this.node.setPosition(this.startX, p.y, p.z); // спрятать справа
+        this.node.setPosition(this.startEdgeX(), p.y, p.z); // спрятать справа (за краем экрана)
     }
 
     update(dt: number) {
         const gm = GameManager.instance;
         if (!gm) return;
 
+        const startX = this.startEdgeX();
+
         // пока не пройдена подсказка «jump to avoid enemies» — держим финиш спрятанным справа
         if (!gm.tutorialDone) {
             const p = this.node.position;
-            if (p.x !== this.startX) this.node.setPosition(this.startX, p.y, p.z);
+            if (p.x !== startX) this.node.setPosition(startX, p.y, p.z);
             return;
         }
 
@@ -50,20 +60,20 @@ export class FinishMover extends Component {
         const elapsed = gm.getRunElapsed();
         const p = this.node.position;
 
-        // за clearBeforeFinish секунд до приезда — сигналим «скоро финиш»:
-        // спавнеры перестают спавнить и чистят барьеры, мужиков, монеты, paypal
-        if (!gm.nearFinish && elapsed >= this.finishAtSec - gm.clearBeforeFinish) {
-            gm.nearFinish = true;
-        }
-
         // запуск рассчитан так, чтобы приехать к targetX ровно на finishAtSec секунде
-        const travel = (this.startX - this.targetX) / Math.max(1, this.moveSpeed);
+        const travel = (startX - this.targetX) / Math.max(1, this.moveSpeed);
         const launchAt = Math.max(0, this.finishAtSec - travel);
 
+        // ещё не время выезжать — держим за краем
         if (elapsed < launchAt) {
-            if (p.x !== this.startX) this.node.setPosition(this.startX, p.y, p.z);
+            if (p.x !== startX) this.node.setPosition(startX, p.y, p.z);
             return;
         }
+
+        // финиш ВЫЕХАЛ из-за края: с этого момента перестаём спавнить. Финиш стартует
+        // позади всех объектов (startMargin > запаса спавна), поэтому существующие
+        // препятствия/монеты уезжают за левый край САМИ (не исчезают на экране).
+        if (!gm.nearFinish) gm.nearFinish = true;
 
         // едем влево с дорогой
         if (p.x > this.targetX) {

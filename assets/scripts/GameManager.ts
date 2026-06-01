@@ -1,5 +1,6 @@
 import { _decorator, Component, Node, Label, Sprite, director, Color, CCFloat } from 'cc';
 import { AudioManager } from './AudioManager';
+import { Responsive } from './Responsive';
 const { ccclass, property } = _decorator;
 
 export enum GameState {
@@ -44,6 +45,8 @@ export class GameManager extends Component {
 
     onLoad() {
         GameManager._instance = this;
+        // адаптив UI под ширину/ориентацию (создаём в рантайме, сцену не трогаем)
+        if (!this.getComponent(Responsive)) this.addComponent(Responsive);
     }
 
     start() {

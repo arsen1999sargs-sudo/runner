@@ -7,7 +7,8 @@
       "Bash(git remote *)",
       "Bash(git push *)",
       "Bash([ -f \"$d/index.html\" ])",
-      "PowerShell(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\Arsen\\\\Desktop\\\\runner\\\\tools\\\\postbuild.ps1\")"
+      "PowerShell(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\Arsen\\\\Desktop\\\\runner\\\\tools\\\\postbuild.ps1\")",
+      "Bash(gh repo *)"
     ]
   }
 }

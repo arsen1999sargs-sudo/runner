@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, CCFloat, CCInteger, Color, Sprite, SpriteFrame, UITransform, Vec3, Label, Font, HorizontalTextAlignment, VerticalTextAlignment } from 'cc';
+import { _decorator, Component, Node, CCFloat, CCInteger, Color, Sprite, SpriteFrame, UITransform, Vec3, Label, Font, HorizontalTextAlignment, VerticalTextAlignment, view } from 'cc';
 import { GameManager, GameState } from './GameManager';
 import { Pickup, PickupKind } from './Pickup';
 import { RoundedRect } from './RoundedRect';
@@ -30,8 +30,16 @@ export class Spawner extends Component {
     @property(CCFloat)
     speed: number = 450;
 
-    @property({ type: CCFloat, tooltip: 'X где появляются объекты (правый край+)' })
+    @property({ type: CCFloat, tooltip: 'X где появляются объекты (правый край+). Легаси: теперь X вычисляется из ширины экрана, см. spawnMargin' })
     spawnX: number = 450;
+
+    @property({ type: CCFloat, tooltip: 'Запас за правым краем экрана, где появляются объекты (px). Объекты спавнятся за пределами видимой области при любой ширине/ориентации.' })
+    spawnMargin: number = 160;
+
+    /** X спавна = правый край видимой области + запас (объект появляется ЗА экраном). */
+    private spawnEdgeX(): number {
+        return view.getVisibleSize().width / 2 + this.spawnMargin;
+    }
 
     @property({ type: CCFloat, tooltip: 'Линия ЗЕМЛИ (ног девочки) — основание барьеров стоит тут' })
     groundY: number = -270;
@@ -213,11 +221,9 @@ export class Spawner extends Component {
         const gm = GameManager.instance;
         if (!gm || gm.getState() !== GameState.RUNNING) return;
 
-        // за clearBeforeFinish сек до финиша — чистим монеты/барьеры и больше не спавним
-        if (gm.isNearFinish()) {
-            if (!this.nearFinishCleared) { this.clearAll(); this.nearFinishCleared = true; }
-            return;
-        }
+        // когда выехал финиш — больше НЕ спавним. Существующие монеты/барьеры уезжают
+        // за левый край САМИ (не исчезают на экране) — финиш едет позади них.
+        if (gm.isNearFinish()) return;
 
         // ДО подсказки: интро — только money_coin, максимум introCoinCount
         if (!gm.tutorialDone) {
@@ -225,7 +231,7 @@ export class Spawner extends Component {
             if (this.timer >= this.spawnInterval) {
                 this.timer = 0;
                 if (this.introSpawned < this.introCoinCount) {
-                    this.makeCoin(-1, this.spawnX, this.groundY + this.coinHeight); // случайная монета (money/paypal)
+                    this.makeCoin(-1, this.spawnEdgeX(), this.groundY + this.coinHeight); // случайная монета (money/paypal)
                     this.introSpawned++;
                 }
             }
@@ -246,7 +252,7 @@ export class Spawner extends Component {
             case 'arc':     this.spawnCoinArc(e.count); break;
             case 'barrier': this.makeObstacle(); break;
             case 'man':     ManSpawner.instance?.spawnMan(); break;
-            case 'coin':    this.makeCoin(-1, this.spawnX, this.groundY + this.coinHeight); break; // случайная монета (money/paypal)
+            case 'coin':    this.makeCoin(-1, this.spawnEdgeX(), this.groundY + this.coinHeight); break; // случайная монета (money/paypal)
         }
     }
 
@@ -263,7 +269,7 @@ export class Spawner extends Component {
         if (!intro && this.coinArc && this.coinFrames.length > 0) {
             this.spawnCoinArc();
         } else {
-            this.makeCoin(intro ? introCoinIdx : -1, this.spawnX, this.groundY + this.coinHeight);
+            this.makeCoin(intro ? introCoinIdx : -1, this.spawnEdgeX(), this.groundY + this.coinHeight);
         }
     }
 
@@ -285,7 +291,7 @@ export class Spawner extends Component {
         pickup.player = this.player;
 
         this.node.addChild(sprite);
-        sprite.setPosition(new Vec3(this.spawnX, this.groundY + this.obstacleSizeH / 2, 0));
+        sprite.setPosition(new Vec3(this.spawnEdgeX(), this.groundY + this.obstacleSizeH / 2, 0));
 
         if (this.obstacleLabel && this.obstacleLabel.length > 0) this.addLabel(sprite);
     }
@@ -336,11 +342,12 @@ export class Spawner extends Component {
         const n = Math.max(1, count ?? this.coinArcCount);
         const R = this.coinArcRadius;
         const baseY = this.groundY + this.coinArcBaseHeight;
+        const sx = this.spawnEdgeX();                // правый край + запас (за экраном)
         const arcId = this.arcSeq++;                 // уникальный id дуги (для «Fantastic!» за всю дугу)
         for (let i = 0; i < n; i++) {
             const t = (n > 1) ? i / (n - 1) : 0.5;
             const ang = Math.PI * (1 - t);           // π → 0 (слева-направо по полукругу)
-            const x = this.spawnX + R * (1 + Math.cos(ang)); // ширина дуги = 2R
+            const x = sx + R * (1 + Math.cos(ang)); // ширина дуги = 2R
             const y = baseY + R * Math.sin(ang);     // концы = baseY, верх = baseY + R
             this.makeCoin(-1, x, y, arcId, n);       // случайная картинка + группа дуги
         }

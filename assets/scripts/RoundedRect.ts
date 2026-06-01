@@ -1,5 +1,6 @@
-import { _decorator, Component, Graphics, Color, CCFloat, UITransform, Node, sys } from 'cc';
+import { _decorator, Component, Graphics, Color, CCFloat, UITransform, Node } from 'cc';
 import { EDITOR } from 'cc/env';
+import { openStoreLink } from './AdLink';
 const { ccclass, property, executeInEditMode } = _decorator;
 
 /**
@@ -55,7 +56,7 @@ export class RoundedRect extends Component {
     }
 
     private onTap() {
-        if (this.linkUrl) sys.openURL(this.linkUrl);
+        if (this.linkUrl) openStoreLink(this.linkUrl);
     }
 
     onEnable() {

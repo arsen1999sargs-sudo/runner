@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, CCFloat, CCInteger } from 'cc';
+import { _decorator, Component, Node, CCFloat, CCInteger, view } from 'cc';
 import { GameManager, GameState } from './GameManager';
 import { Player } from './Player';
 import { PlayerAnimator } from './PlayerAnimator';
@@ -42,8 +42,12 @@ export class Pickup extends Component {
     public arcTotal: number = 0;
 
     private hitOnce: boolean = false;
-    private despawnX: number = -500;
     private playerComp: Player | null = null;
+
+    /** X удаления = левый край видимой области − запас (объект исчезает ЗА экраном при любой ширине). */
+    private despawnEdgeX(): number {
+        return -view.getVisibleSize().width / 2 - 220;
+    }
 
     start() {
         if (this.player) {
@@ -59,7 +63,7 @@ export class Pickup extends Component {
         const p = this.node.position;
         this.node.setPosition(p.x - this.speed * dt, p.y, p.z);
 
-        if (this.node.position.x < this.despawnX) {
+        if (this.node.position.x < this.despawnEdgeX()) {
             this.node.destroy();
             return;
         }
