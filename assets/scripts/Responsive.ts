@@ -87,7 +87,8 @@ export class Responsive extends Component {
             const targetH = Math.max(this.dlH, bannerH * 2 * 0.40);
             const s = targetH / this.dlH;
             this.setDownloadScale(s);
-            this.dlNode.setPosition(0, this.bannerCenterY, 0); // по центру панели (и по горизонтали, и по вертикали)
+            const halfBtnW = (this.dlW * s) / 2;
+            this.dlNode.setPosition(halfW - halfBtnW - 20, this.bannerCenterY, 0); // справа, по вертикальному центру панели
         } else {
             this.setDownloadScale(this.dlOs);
             this.dlNode.setPosition(halfW - (HALF_DW - this.dlOx), this.dlOy, 0); // низ-право, исходный размер
