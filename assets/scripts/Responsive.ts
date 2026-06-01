@@ -49,8 +49,8 @@ export class Responsive extends Component {
 
     onLoad() {
         // имя узла -> к какому краю привязывать
-        this.register('HeartsContainer', 'TL', 1.5);   // сердца — верх-лево, в landscape крупнее
-        this.register('MoneyPanel', 'TR', 1.5);        // баланс PayPal — верх-право, в landscape крупнее
+        this.register('HeartsContainer', 'TL', 2.0);   // сердца — верх-лево, в landscape ×2
+        this.register('MoneyPanel', 'TR', 2.0);        // баланс PayPal — верх-право, в landscape ×2
         // панель «Playoff», кнопка DOWNLOAD и затемнение (Dim) — отдельная логика (ниже / в DimOverlay.ts)
         this.setupBanner();
         this.setupDownload();
