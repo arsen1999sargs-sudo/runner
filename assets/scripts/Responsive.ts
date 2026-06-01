@@ -1,4 +1,5 @@
 import { _decorator, Component, Node, UITransform, view, director, Sprite, SpriteFrame, Texture2D, resources } from 'cc';
+import { PulseScale } from './PulseScale';
 const { ccclass } = _decorator;
 
 /**
@@ -40,10 +41,12 @@ export class Responsive extends Component {
 
     // кнопка DOWNLOAD: в landscape крупнее и по центру панели
     private dlNode: Node | null = null;
+    private dlPulse: PulseScale | null = null;  // на кнопке висит пульсация — масштаб задаём через её базу
     private dlOx: number = 243;   // исходный X (портрет)
     private dlOy: number = -597;  // исходный Y (портрет)
     private dlW: number = 150;    // ширина кнопки
     private dlH: number = 60;     // высота кнопки
+    private dlOs: number = 1;     // исходный масштаб (портрет)
 
     onLoad() {
         // имя узла -> к какому краю привязывать
@@ -60,10 +63,18 @@ export class Responsive extends Component {
         const dl = this.find('DownloadButton');
         if (!dl) return;
         this.dlNode = dl;
+        this.dlPulse = dl.getComponent(PulseScale);
         this.dlOx = dl.position.x;
         this.dlOy = dl.position.y;
+        this.dlOs = dl.scale.x || 1;
         const t = dl.getComponent(UITransform);
         if (t) { this.dlW = t.contentSize.width; this.dlH = t.contentSize.height; }
+    }
+
+    /** Задать масштаб кнопки: через базу пульсации (если есть), иначе напрямую. */
+    private setDownloadScale(s: number) {
+        if (this.dlPulse) this.dlPulse.setBaseScale(s);
+        else if (this.dlNode) this.dlNode.setScale(s, s, 1);
     }
 
     /** Раскладка кнопки DOWNLOAD: landscape — крупнее и по центру панели; портрет — как было (низ-право). */
@@ -76,11 +87,11 @@ export class Responsive extends Component {
             const bannerH = this.bannerCenterY - (-vis.height / 2); // = h/2 (панель прижата к низу)
             const targetH = Math.max(this.dlH, bannerH * 2 * 0.78);
             const s = targetH / this.dlH;
-            this.dlNode.setScale(s, s, 1);
+            this.setDownloadScale(s);
             const halfBtnW = (this.dlW * s) / 2;
             this.dlNode.setPosition(halfW - halfBtnW - 16, this.bannerCenterY, 0); // справа (ближе к краю), по центру панели по вертикали
         } else {
-            this.dlNode.setScale(1, 1, 1);
+            this.setDownloadScale(this.dlOs);
             this.dlNode.setPosition(halfW - (HALF_DW - this.dlOx), this.dlOy, 0); // низ-право, исходный размер
         }
     }

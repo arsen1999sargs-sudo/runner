@@ -25,10 +25,18 @@ export class PulseScale extends Component {
 
     private baseScale: Vec3 = new Vec3(1, 1, 1);
     private time: number = 0;
+    private baseLocked: boolean = false; // базовый масштаб задан извне (Responsive) — не перекэшировать
 
     onLoad() {
-        // запоминаем исходный масштаб как опорный (=1)
-        this.baseScale = this.node.scale.clone();
+        // запоминаем исходный масштаб как опорный, если его не задали извне
+        if (!this.baseLocked) this.baseScale = this.node.scale.clone();
+    }
+
+    /** Задать базовый масштаб извне (вокруг него идёт пульсация). Устойчиво к порядку onLoad. */
+    public setBaseScale(scalar: number) {
+        this.baseScale.x = scalar;
+        this.baseScale.y = scalar;
+        this.baseLocked = true;
     }
 
     update(dt: number) {
