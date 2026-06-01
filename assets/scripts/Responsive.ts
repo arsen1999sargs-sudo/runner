@@ -1,5 +1,4 @@
 import { _decorator, Component, Node, UITransform, view, director, Sprite, SpriteFrame, Texture2D, resources } from 'cc';
-import { PulseScale } from './PulseScale';
 const { ccclass } = _decorator;
 
 /**
@@ -41,7 +40,7 @@ export class Responsive extends Component {
 
     // кнопка DOWNLOAD: в landscape крупнее и по центру панели
     private dlNode: Node | null = null;
-    private dlPulse: PulseScale | null = null;  // на кнопке висит пульсация — масштаб задаём через её базу
+    private dlPulse: any = null;  // PulseScale на кнопке (берём по строковому имени, чтобы не плодить циклический импорт)
     private dlOx: number = 243;   // исходный X (портрет)
     private dlOy: number = -597;  // исходный Y (портрет)
     private dlW: number = 150;    // ширина кнопки
@@ -63,7 +62,7 @@ export class Responsive extends Component {
         const dl = this.find('DownloadButton');
         if (!dl) return;
         this.dlNode = dl;
-        this.dlPulse = dl.getComponent(PulseScale);
+        this.dlPulse = dl.getComponent('PulseScale') as any;
         this.dlOx = dl.position.x;
         this.dlOy = dl.position.y;
         this.dlOs = dl.scale.x || 1;
@@ -73,7 +72,7 @@ export class Responsive extends Component {
 
     /** Задать масштаб кнопки: через базу пульсации (если есть), иначе напрямую. */
     private setDownloadScale(s: number) {
-        if (this.dlPulse) this.dlPulse.setBaseScale(s);
+        if (this.dlPulse && typeof this.dlPulse.setBaseScale === 'function') this.dlPulse.setBaseScale(s);
         else if (this.dlNode) this.dlNode.setScale(s, s, 1);
     }
 
@@ -83,9 +82,9 @@ export class Responsive extends Component {
         const halfW = vis.width / 2;
         const landscape = vis.width > vis.height;
         if (landscape) {
-            // высота кнопки ≈ 78% высоты панели, но не мельче исходной
+            // высота кнопки ≈ 55% высоты панели, но не мельче исходной
             const bannerH = this.bannerCenterY - (-vis.height / 2); // = h/2 (панель прижата к низу)
-            const targetH = Math.max(this.dlH, bannerH * 2 * 0.78);
+            const targetH = Math.max(this.dlH, bannerH * 2 * 0.55);
             const s = targetH / this.dlH;
             this.setDownloadScale(s);
             const halfBtnW = (this.dlW * s) / 2;
