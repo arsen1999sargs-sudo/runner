@@ -20,7 +20,7 @@ const HALF_DH = 640;  // дизайн-высота 1280 / 2 (== полувысо
 
 type Kind = 'TL' | 'TR' | 'BL' | 'BR' | 'stretchFull' | 'stretchWidth';
 
-interface Item { node: Node; kind: Kind; ox: number; oy: number; oh: number; }
+interface Item { node: Node; kind: Kind; ox: number; oy: number; oh: number; sL: number; os: number; }
 
 @ccclass('Responsive')
 export class Responsive extends Component {
@@ -47,8 +47,8 @@ export class Responsive extends Component {
 
     onLoad() {
         // имя узла -> к какому краю привязывать
-        this.register('HeartsContainer', 'TL');   // сердца — верх-лево
-        this.register('MoneyPanel', 'TR');         // баланс PayPal — верх-право
+        this.register('HeartsContainer', 'TL', 1.5);   // сердца — верх-лево, в landscape крупнее
+        this.register('MoneyPanel', 'TR', 1.5);        // баланс PayPal — верх-право, в landscape крупнее
         // панель «Playoff», кнопка DOWNLOAD и затемнение (Dim) — отдельная логика (ниже / в DimOverlay.ts)
         this.setupBanner();
         this.setupDownload();
@@ -132,7 +132,7 @@ export class Responsive extends Component {
         }
     }
 
-    private register(name: string, kind: Kind) {
+    private register(name: string, kind: Kind, scaleLandscape: number = 1) {
         const node = this.find(name);
         if (!node) return;
         const t = node.getComponent(UITransform);
@@ -141,6 +141,8 @@ export class Responsive extends Component {
             ox: node.position.x,
             oy: node.position.y,
             oh: t ? t.contentSize.height : 0,
+            sL: scaleLandscape,
+            os: node.scale.x || 1,
         });
     }
 
@@ -166,6 +168,7 @@ export class Responsive extends Component {
         const vis = view.getVisibleSize();
         this.lastW = vis.width;
         const halfW = vis.width / 2;
+        const landscape = vis.width > vis.height;
 
         // панель «Playoff» — отдельная раскладка (своя картинка/пропорции в landscape)
         this.applyBanner(vis);
@@ -174,13 +177,15 @@ export class Responsive extends Component {
 
         for (const it of this.items) {
             const t = it.node.getComponent(UITransform);
+            // в landscape угловые элементы можно увеличить; отступы от краёв тоже множим на масштаб,
+            // чтобы увеличенный элемент не вылезал за край. По Y отступ от верха = (640 - oy)*s.
+            const m = landscape ? it.sL : 1;        // множитель отступов (как растёт элемент)
+            const s = it.os * m;                     // итоговый масштаб (исходный × landscape-множитель)
             switch (it.kind) {
-                // углы: сохраняем исходный отступ от соответствующего края (по Y отступ не меняется,
-                // т.к. полувысота фиксирована = 640).
-                case 'TL': it.node.setPosition(-halfW + (it.ox + HALF_DW), it.oy, 0); break;
-                case 'BL': it.node.setPosition(-halfW + (it.ox + HALF_DW), it.oy, 0); break;
-                case 'TR': it.node.setPosition(halfW - (HALF_DW - it.ox), it.oy, 0); break;
-                case 'BR': it.node.setPosition(halfW - (HALF_DW - it.ox), it.oy, 0); break;
+                case 'TL': it.node.setScale(s, s, 1); it.node.setPosition(-halfW + (it.ox + HALF_DW) * m, HALF_DH - (HALF_DH - it.oy) * m, 0); break;
+                case 'BL': it.node.setScale(s, s, 1); it.node.setPosition(-halfW + (it.ox + HALF_DW) * m, -HALF_DH + (it.oy + HALF_DH) * m, 0); break;
+                case 'TR': it.node.setScale(s, s, 1); it.node.setPosition(halfW - (HALF_DW - it.ox) * m, HALF_DH - (HALF_DH - it.oy) * m, 0); break;
+                case 'BR': it.node.setScale(s, s, 1); it.node.setPosition(halfW - (HALF_DW - it.ox) * m, -HALF_DH + (it.oy + HALF_DH) * m, 0); break;
                 // затемнение — на весь видимый прямоугольник, в центре
                 case 'stretchFull':
                     if (t) t.setContentSize(vis.width, vis.height);
