@@ -78,8 +78,7 @@ export class Responsive extends Component {
             const s = targetH / this.dlH;
             this.dlNode.setScale(s, s, 1);
             const halfBtnW = (this.dlW * s) / 2;
-            const lowerOffset = bannerH * 0.12; // немного ниже центра (меньше, т.к. кнопка теперь крупная)
-            this.dlNode.setPosition(halfW - halfBtnW - 40, this.bannerCenterY - lowerOffset, 0); // справа, чуть ниже центра панели
+            this.dlNode.setPosition(halfW - halfBtnW - 16, this.bannerCenterY, 0); // справа (ближе к краю), по центру панели по вертикали
         } else {
             this.dlNode.setScale(1, 1, 1);
             this.dlNode.setPosition(halfW - (HALF_DW - this.dlOx), this.dlOy, 0); // низ-право, исходный размер
