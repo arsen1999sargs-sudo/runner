@@ -82,13 +82,12 @@ export class Responsive extends Component {
         const halfW = vis.width / 2;
         const landscape = vis.width > vis.height;
         if (landscape) {
-            // высота кнопки ≈ 55% высоты панели, но не мельче исходной
+            // высота кнопки ≈ 40% высоты панели, но не мельче исходной
             const bannerH = this.bannerCenterY - (-vis.height / 2); // = h/2 (панель прижата к низу)
-            const targetH = Math.max(this.dlH, bannerH * 2 * 0.55);
+            const targetH = Math.max(this.dlH, bannerH * 2 * 0.40);
             const s = targetH / this.dlH;
             this.setDownloadScale(s);
-            const halfBtnW = (this.dlW * s) / 2;
-            this.dlNode.setPosition(halfW - halfBtnW - 16, this.bannerCenterY, 0); // справа (ближе к краю), по центру панели по вертикали
+            this.dlNode.setPosition(0, this.bannerCenterY, 0); // по центру панели (и по горизонтали, и по вертикали)
         } else {
             this.setDownloadScale(this.dlOs);
             this.dlNode.setPosition(halfW - (HALF_DW - this.dlOx), this.dlOy, 0); // низ-право, исходный размер
