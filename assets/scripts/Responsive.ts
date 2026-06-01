@@ -36,15 +36,53 @@ export class Responsive extends Component {
     private landscapeFrame: SpriteFrame | null = null;   // широкая (landscape), грузится из resources
     private portraitH: number = 120;                     // высота панели в портрете
     private portraitY: number = -580;                    // Y панели в портрете
+    private bannerCenterY: number = -580;                // текущий центр панели по Y (для кнопки DOWNLOAD)
+
+    // кнопка DOWNLOAD: в landscape крупнее и по центру панели
+    private dlNode: Node | null = null;
+    private dlOx: number = 243;   // исходный X (портрет)
+    private dlOy: number = -597;  // исходный Y (портрет)
+    private dlW: number = 150;    // ширина кнопки
+    private dlH: number = 60;     // высота кнопки
 
     onLoad() {
         // имя узла -> к какому краю привязывать
         this.register('HeartsContainer', 'TL');   // сердца — верх-лево
         this.register('MoneyPanel', 'TR');         // баланс PayPal — верх-право
-        this.register('DownloadButton', 'BR');     // кнопка DOWNLOAD — низ-право
-        // панель «Playoff» и затемнение (Dim) — отдельная логика (banner ниже, Dim в DimOverlay.ts)
+        // панель «Playoff», кнопка DOWNLOAD и затемнение (Dim) — отдельная логика (ниже / в DimOverlay.ts)
         this.setupBanner();
+        this.setupDownload();
         this.apply();
+    }
+
+    /** Запоминаем исходные параметры кнопки DOWNLOAD. */
+    private setupDownload() {
+        const dl = this.find('DownloadButton');
+        if (!dl) return;
+        this.dlNode = dl;
+        this.dlOx = dl.position.x;
+        this.dlOy = dl.position.y;
+        const t = dl.getComponent(UITransform);
+        if (t) { this.dlW = t.contentSize.width; this.dlH = t.contentSize.height; }
+    }
+
+    /** Раскладка кнопки DOWNLOAD: landscape — крупнее и по центру панели; портрет — как было (низ-право). */
+    private applyDownload(vis: { width: number, height: number }) {
+        if (!this.dlNode) return;
+        const halfW = vis.width / 2;
+        const landscape = vis.width > vis.height;
+        if (landscape) {
+            // высота кнопки ≈ 42% высоты панели, но не мельче исходной
+            const bannerH = this.bannerCenterY - (-vis.height / 2); // = h/2 (панель прижата к низу)
+            const targetH = Math.max(this.dlH, bannerH * 2 * 0.42);
+            const s = targetH / this.dlH;
+            this.dlNode.setScale(s, s, 1);
+            const halfBtnW = (this.dlW * s) / 2;
+            this.dlNode.setPosition(halfW - halfBtnW - 40, this.bannerCenterY, 0); // справа, по центру панели
+        } else {
+            this.dlNode.setScale(1, 1, 1);
+            this.dlNode.setPosition(halfW - (HALF_DW - this.dlOx), this.dlOy, 0); // низ-право, исходный размер
+        }
     }
 
     /** Готовим панель «Playoff»: исходная (портрет) + широкая landscape-картинка. */
@@ -84,10 +122,12 @@ export class Responsive extends Component {
             const aspect = (r && r.width > 0) ? (r.height / r.width) : (this.portraitH / vis.width);
             const h = vis.width * aspect;                // ширина = весь экран, высота по пропорции (без искажения)
             this.bannerUI.setContentSize(vis.width, h);
-            this.bannerNode.setPosition(0, -vis.height / 2 + h / 2, 0); // прижата к низу
+            this.bannerCenterY = -vis.height / 2 + h / 2;
+            this.bannerNode.setPosition(0, this.bannerCenterY, 0); // прижата к низу
         } else {
             if (this.portraitFrame) this.bannerSprite.spriteFrame = this.portraitFrame;
             this.bannerUI.setContentSize(vis.width, this.portraitH);
+            this.bannerCenterY = this.portraitY;
             this.bannerNode.setPosition(0, this.portraitY, 0);
         }
     }
@@ -129,6 +169,8 @@ export class Responsive extends Component {
 
         // панель «Playoff» — отдельная раскладка (своя картинка/пропорции в landscape)
         this.applyBanner(vis);
+        // кнопка DOWNLOAD — крупнее и по центру панели в landscape (после applyBanner: bannerCenterY готов)
+        this.applyDownload(vis);
 
         for (const it of this.items) {
             const t = it.node.getComponent(UITransform);
