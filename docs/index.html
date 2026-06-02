@@ -75,6 +75,18 @@
       set:function(v){ var k=find(v); d.set.call(this, k ? blobURL(F[k]) : v); }
     });
   });
+  // Intercept <script src> too. Cocos loads asset-bundle index.js via a real <script>
+  // tag, which bypasses fetch/XHR. On a subpath host (github.io/runner/) those 404 and
+  // the engine hangs on the splash. Serve them from the map as a blob URL so they load
+  // on ANY path. Unmapped scripts (excluded spine) fall through to the network.
+  (function(){
+    var SP = window.HTMLScriptElement && window.HTMLScriptElement.prototype; if(!SP) return;
+    var sd = Object.getOwnPropertyDescriptor(SP,'src'); if(!sd||!sd.set) return;
+    Object.defineProperty(SP,'src',{ configurable:true, enumerable:true,
+      get:function(){ return sd.get.call(this); },
+      set:function(v){ var k=find(v); var r=k?F[k]:null; sd.set.call(this, r ? blobURL(r) : v); }
+    });
+  })();
 })();
 </script>
 
@@ -218,15 +230,11 @@ canvas {
     }
     return orig.apply(this, arguments);
   };
-  // pre-register bundle modules (named System.register: "chunks:///...", "virtual:///...")
-  // so the engine's imports of "virtual:///prerequisite-imports/*" resolve from the registry.
-  try {
-    Object.keys(window.__F__).forEach(function(k){
-      if (/assets\/[^/]+\/index\.js$/.test(k)) {
-        try { (0, eval)(window.__F__[k].text + '\n//# sourceURL=' + k); } catch(e){ console.error('preload', k, e && e.message); }
-      }
-    });
-  } catch(e){}
+  // No pre-registration: asset-bundle index.js files are loaded by Cocos via a real
+  // <script> tag, which the script-src interceptor serves from the map as a blob URL.
+  // That lets Cocos run its normal bundle setup (so the start scene loads) on ANY host
+  // path. Pre-registering them here would make Cocos think the bundle is already loaded
+  // and skip that setup -> the scene never loads on a subpath.
 })();
 </script>
 
