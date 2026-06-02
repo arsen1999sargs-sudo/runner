@@ -49,7 +49,7 @@ Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 $mp3s = Get-ChildItem (Join-Path $dst 'assets') -Recurse -Filter *.mp3
 foreach ($f in $mp3s) {
   $sz0 = $f.Length; $t = "$($f.FullName).t.mp3"
-  & $ff -y -i $f.FullName -map 0:a:0 -vn -map_metadata -1 -ac 1 -b:a 96k $t 2>$null
+  & $ff -y -i $f.FullName -map 0:a:0 -vn -map_metadata -1 -ac 1 -b:a 64k $t 2>$null
   if (Test-Path $t) {
     $sz1 = (Get-Item $t).Length
     if ($sz1 -lt $sz0) { Move-Item $t $f.FullName -Force; "mp3 {0}: {1}KB -> {2}KB" -f $f.BaseName.Substring(0,6),[int]($sz0/1KB),[int]($sz1/1KB) }

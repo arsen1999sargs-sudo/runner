@@ -3,12 +3,13 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
-// Gzip large engine JS chunks (cocos-js/*.js). They are loaded ONLY via SystemJS
-// module import (async instantiate), so they can be decompressed in the browser with
-// DecompressionStream without touching the synchronous boot path. The asset-bundle
-// index.js files (assets/*/index.js) are pre-registered synchronously at startup and
-// are therefore left uncompressed.
-const GZIP = (rel) => /^cocos-js\/.*\.js$/i.test(rel);
+// GZIP DISABLED. Gzipping the engine chunks made them load via an ASYNC
+// System.instantiate (DecompressionStream). With more than one gzipped chunk this
+// raced on SystemJS's shared "anonymous register" slot and intermittently hung the
+// game on the splash screen (more often on desktop Chrome, which boots faster). The
+// uncompressed single file is ~4.75MB — still under the 5MB limit — and boots
+// deterministically (synchronous eval), so we keep everything as plain text.
+const GZIP = (rel) => false;
 
 const ROOT = path.resolve(__dirname, '..');
 const BUILD = path.join(ROOT, 'build', 'web-mobile');
