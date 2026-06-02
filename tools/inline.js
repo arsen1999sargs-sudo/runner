@@ -3,13 +3,12 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
-// GZIP DISABLED. Gzipping the engine chunks made them load via an ASYNC
-// System.instantiate (DecompressionStream). With more than one gzipped chunk this
-// raced on SystemJS's shared "anonymous register" slot and intermittently hung the
-// game on the splash screen (more often on desktop Chrome, which boots faster). The
-// uncompressed single file is ~4.75MB — still under the 5MB limit — and boots
-// deterministically (synchronous eval), so we keep everything as plain text.
-const GZIP = (rel) => false;
+// Gzip ONLY the big engine chunk (cocos-js/_virtual_cc*.js, ~2.4MB -> ~0.6MB). It is
+// loaded via async System.instantiate (DecompressionStream). The earlier race that hung
+// the splash was between TWO concurrent gzipped chunks clobbering SystemJS's shared
+// register slot — gzipping a SINGLE chunk avoids any concurrency, so it is safe. This
+// keeps the single file well under the 5MB limit even with Spine included (clean console).
+const GZIP = (rel) => /^cocos-js\/_virtual_cc.*\.js$/i.test(rel);
 
 const ROOT = path.resolve(__dirname, '..');
 const BUILD = path.join(ROOT, 'build', 'web-mobile');

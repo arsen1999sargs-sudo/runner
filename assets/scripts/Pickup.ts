@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, CCFloat, CCInteger, view } from 'cc';
+import { _decorator, Component, Node, CCFloat, CCInteger, view, tween, Vec3 } from 'cc';
 import { GameManager, GameState } from './GameManager';
 import { Player } from './Player';
 import { PlayerAnimator } from './PlayerAnimator';
@@ -42,6 +42,7 @@ export class Pickup extends Component {
     public arcTotal: number = 0;
 
     private hitOnce: boolean = false;
+    private flying: boolean = false; // монета летит в счётчик — не двигаем/не сталкиваем
     private playerComp: Player | null = null;
 
     /** X удаления = левый край видимой области − запас (объект исчезает ЗА экраном при любой ширине). */
@@ -58,6 +59,7 @@ export class Pickup extends Component {
     update(dt: number) {
         const gm = GameManager.instance;
         if (!gm || gm.getState() !== GameState.RUNNING) return;
+        if (this.flying) return; // монета в полёте к счётчику — позицией управляет tween
 
         // движение справа налево
         const p = this.node.position;
@@ -109,8 +111,28 @@ export class Pickup extends Component {
 
     private onPickCoin(gm: GameManager) {
         this.hitOnce = true;
-        gm.addEarnings(this.value);
         PraiseText.reportCoin(this.arcId, this.arcTotal); // всплывающая похвала
-        this.node.destroy();
+        // Перелёт монеты в счётчик ($), как в референсе: летит к балансу PayPal, затем
+        // начисляем и узел убираем. Если счётчика нет — старое поведение (мгновенно).
+        const counter = (gm.earningsLabel && gm.earningsLabel.node && gm.earningsLabel.node.isValid) ? gm.earningsLabel.node : null;
+        const parent = this.node.parent;
+        if (counter && parent) {
+            this.flying = true;
+            const local = new Vec3();
+            parent.inverseTransformPoint(local, counter.worldPosition); // цель в системе координат монеты
+            const self = this;
+            const spin = this.node.angle - 720; // 2 оборота во время полёта
+            tween(this.node)
+                .to(0.45, { position: local, scale: new Vec3(0.25, 0.25, 1), angle: spin }, { easing: 'cubicIn' })
+                .call(function(){
+                    gm.addEarnings(self.value);            // счётчик тикает в момент прилёта
+                    if (gm.pulseEarnings) gm.pulseEarnings(); // лёгкий «пульс» счётчика
+                    if (self.node && self.node.isValid) self.node.destroy();
+                })
+                .start();
+        } else {
+            gm.addEarnings(this.value);
+            this.node.destroy();
+        }
     }
 }

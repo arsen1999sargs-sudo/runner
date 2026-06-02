@@ -58,7 +58,9 @@ foreach ($f in $mp3s) {
 }
 
 # --- 4. inline -> dist/index.html ---
-& $node (Join-Path $root 'tools\inline.js') --no-spine
+# NOTE: spine is now INCLUDED (no --no-spine) so the engine's spine load doesn't 404 in
+# the console (404s are grounds for ad-network rejection of the playable).
+& $node (Join-Path $root 'tools\inline.js')
 
 # --- 5. publish copy ---
 Copy-Item (Join-Path $root 'dist\index.html') (Join-Path $root 'docs\index.html') -Force

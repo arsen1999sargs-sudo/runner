@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Label, Sprite, director, Color, CCFloat } from 'cc';
+import { _decorator, Component, Node, Label, Sprite, director, Color, CCFloat, tween, Vec3 } from 'cc';
 import { AudioManager } from './AudioManager';
 import { Responsive } from './Responsive';
 const { ccclass, property } = _decorator;
@@ -53,6 +53,47 @@ export class GameManager extends Component {
         this.setState(GameState.IDLE);
         this.updateHeartsUI();
         this.updateEarningsUI();
+        this.syncScrollSpeeds();
+    }
+
+    /**
+     * Награды/препятствия должны выглядеть «вкопанными» в окружение, а не плыть к игроку.
+     * Для этого скорость прокрутки фона/дороги приравниваем к скорости движения монет
+     * (Spawner.speed) — тогда мир и объекты двигаются вместе. Делается в рантайме, сцену
+     * править не нужно.
+     */
+    private syncScrollSpeeds() {
+        const scene = director.getScene();
+        if (!scene) return;
+        // скорость монет (берём из Spawner, иначе 450 по умолчанию)
+        let coinSpeed = 450;
+        const findComp = (name: string): any[] => {
+            const out: any[] = [];
+            const stack: Node[] = [];
+            for (const c of scene.children) stack.push(c);
+            while (stack.length) {
+                const n = stack.pop() as Node;
+                const comp = n.getComponent(name) as any;
+                if (comp) out.push(comp);
+                for (let i = 0; i < n.children.length; i++) stack.push(n.children[i]);
+            }
+            return out;
+        };
+        const spawners = findComp('Spawner');
+        if (spawners.length && typeof spawners[0].speed === 'number') coinSpeed = spawners[0].speed;
+        // фон и дорога — на ту же скорость
+        findComp('HorizontalScroller').forEach((c) => { c.speed = coinSpeed; });
+        findComp('RoadScroller').forEach((c) => { c.speed = coinSpeed; });
+    }
+
+    /** Лёгкий «пульс» счётчика $ при прилёте монеты. */
+    public pulseEarnings() {
+        const n = this.earningsLabel ? this.earningsLabel.node : null;
+        if (!n) return;
+        const b = n.scale.clone();
+        tween(n).to(0.08, { scale: new Vec3(b.x * 1.3, b.y * 1.3, b.z) })
+                .to(0.12, { scale: b })
+                .start();
     }
 
     public setState(newState: GameState) {
