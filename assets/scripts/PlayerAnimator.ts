@@ -137,7 +137,6 @@ export class PlayerAnimator extends Component {
                 this.frames.push(sf);
             }
         }
-        console.log(`[PlayerAnimator] кадров: ${this.frames.length}`);
     }
 
     private createOverlay() {
