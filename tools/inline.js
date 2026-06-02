@@ -115,7 +115,7 @@ const interceptor = `
     var self=this, k=self.__k; if(!k) return XS.apply(this, arguments);
     var r=F[k];
     setTimeout(function(){
-      var rt = self.responseType || '', resp;
+      var rt = self.responseType || '';
       try {
         function def(n,v){ try{ Object.defineProperty(self,n,{configurable:true,get:function(){return v;}}); }catch(e){} }
         def('readyState',4); def('status',200); def('statusText','OK');
@@ -126,10 +126,16 @@ const interceptor = `
           // binary: fresh ArrayBuffer/Blob on EACH access (decodeAudioData detaches the buffer)
           Object.defineProperty(self,'response',{configurable:true,get:function(){ var u8=bytes(r); return (rt==='blob') ? new Blob([u8],{type:r.mime}) : u8.buffer; }});
         }
-        if (self.onreadystatechange) self.onreadystatechange();
-        if (self.onload) self.onload();
+        // Fire ONLY via dispatchEvent. dispatchEvent(new Event('load')) ALSO invokes the
+        // onload PROPERTY handler — so calling self.onload() too would fire it twice. The
+        // engine's downloader removes the request id on first completion; a second call
+        // makes _downloading.remove(id) return undefined and throws "undefined.length",
+        // which aborts the per-request callbacks and can stall the whole load (the desktop
+        // "splash hang"). One dispatch covers both onX properties and addEventListener.
+        try { self.dispatchEvent(new Event('readystatechange')); } catch(e){}
         try { self.dispatchEvent(new Event('load')); } catch(e){}
-      } catch(e){ if(self.onerror) self.onerror(e); }
+        try { self.dispatchEvent(new Event('loadend')); } catch(e){}
+      } catch(e){ try { self.dispatchEvent(new Event('error')); } catch(_){} }
     }, 0);
   };
   ['HTMLImageElement','HTMLAudioElement','HTMLVideoElement'].forEach(function(tag){
@@ -140,6 +146,41 @@ const interceptor = `
       set:function(v){ var k=find(v); d.set.call(this, k ? blobURL(F[k]) : v); }
     });
   });
+  // Fonts. Cocos loads TTF via new FontFace(family, 'url(...)') whose source is fetched
+  // by the browser's NATIVE font loader — it bypasses fetch/XHR, so on a single inlined
+  // file (any host path) that url 404s and text falls back to a system font. Rewrite the
+  // url() to a blob URL from the map so the real font loads everywhere.
+  var FONT_URL = /url\\(\\s*(['"]?)([^'")]+)\\1\\s*\\)/g;
+  function rewriteUrls(css){ return css.replace(FONT_URL, function(m, q, u){ var k = find(u); return k ? 'url("'+blobURL(F[k])+'")' : m; }); }
+  // Path A: browsers using the FontFace constructor (new FontFace(family, 'url(...)')).
+  if (window.FontFace){
+    var OFF = window.FontFace;
+    var WF = function(family, source, descriptors){
+      if (typeof source === 'string') source = rewriteUrls(source);
+      return new OFF(family, source, descriptors);
+    };
+    WF.prototype = OFF.prototype;
+    try { window.FontFace = WF; } catch(e){}
+  }
+  // Path B (what desktop Chrome actually uses here): the engine injects a <style> whose
+  // textContent is "@font-face{ ... src:url('<ttf>') }" then appends it — the browser's CSS
+  // engine fetches that url directly (bypasses fetch/XHR/FontFace), 404ing on the inlined
+  // file. Intercept textContent on style elements so the url() points at the map's blob.
+  (function(){
+    var OCE = Document.prototype.createElement;
+    var tcd = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
+    if (!tcd || !tcd.set) return;
+    Document.prototype.createElement = function(tag){
+      var el = OCE.apply(this, arguments);
+      if (String(tag).toLowerCase() === 'style'){
+        Object.defineProperty(el, 'textContent', { configurable:true, enumerable:true,
+          get:function(){ return tcd.get.call(this); },
+          set:function(v){ tcd.set.call(this, (typeof v==='string' && v.indexOf('@font-face')>=0) ? rewriteUrls(v) : v); }
+        });
+      }
+      return el;
+    };
+  })();
   // Intercept <script src> too. Cocos loads asset-bundle index.js via a real <script>
   // tag, which bypasses fetch/XHR. On a subpath host (github.io/runner/) those 404 and
   // the engine hangs on the splash. Serve them from the map as a blob URL so they load
@@ -223,12 +264,16 @@ const mapJson = JSON.stringify(runtimeMap).replace(/</g, '\\u003c');
 const mapScript = '<script type="application/json" id="__FD__">' + mapJson + '</script>\n'
   + '<script>window.__F__=JSON.parse(document.getElementById("__FD__").textContent);</script>';
 
+// Empty-data favicon so the browser does NOT auto-probe /favicon.ico (a harmless but
+// console-visible 404 on a single-file host). Keeps the console fully clean for ad-network review.
+const favicon = '<link rel="icon" href="data:,">';
+
 // Inject AFTER <meta charset> so the browser decodes the (UTF-8) embedded data correctly.
 // The charset declaration must be within the first 1024 bytes — the huge map must come after it.
 if (/<meta\s+charset/i.test(html)) {
-  html = html.replace(/(<meta\s+charset[^>]*>)/i, (m) => m + '\n' + mapScript + '\n' + interceptor);
+  html = html.replace(/(<meta\s+charset[^>]*>)/i, (m) => m + '\n' + favicon + '\n' + mapScript + '\n' + interceptor);
 } else {
-  html = html.replace(/<head>/i, () => '<head>\n<meta charset="utf-8">\n' + mapScript + '\n' + interceptor);
+  html = html.replace(/<head>/i, () => '<head>\n<meta charset="utf-8">\n' + favicon + '\n' + mapScript + '\n' + interceptor);
 }
 
 fs.mkdirSync(OUTDIR, { recursive: true });
