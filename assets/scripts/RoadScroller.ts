@@ -35,6 +35,7 @@ export class RoadScroller extends Component {
 
     private gfx: Graphics | null = null;
     private offset: number = 0;
+    private drawnStatic: boolean = false;
 
     onLoad() {
         this.gfx = this.getComponent(Graphics);
@@ -44,10 +45,16 @@ export class RoadScroller extends Component {
     update(dt: number) {
         const gm = GameManager.instance;
         if (gm && gm.getState() === GameState.RUNNING) {
+            // движется — перерисовываем каждый кадр
             this.offset += this.speed * dt;
             if (this.offset >= this.spacing) this.offset -= this.spacing;
+            this.draw();
+            this.drawnStatic = false;
+        } else if (!this.drawnStatic) {
+            // в покое (старт/пауза/конец) разметка статична — рисуем ОДИН раз, не каждый кадр
+            this.draw();
+            this.drawnStatic = true;
         }
-        this.draw();
     }
 
     private draw() {
@@ -55,13 +62,15 @@ export class RoadScroller extends Component {
         this.gfx.clear();
         this.gfx.fillColor = new Color(255, 255, 255, this.alpha);
 
+        // Накапливаем все штрихи в один путь и заливаем ОДНИМ fill() — раньше fill() звался
+        // на каждый штрих (лишние draw-call'ы каждый кадр). Один fill заметно дешевле.
         const count = Math.ceil((this.topY - this.bottomY) / this.spacing) + 2;
         for (let i = -1; i < count; i++) {
             // штрихи едут вниз: вычитаем offset (он зациклен 0..spacing)
             const y = this.topY - i * this.spacing - this.offset;
             if (y < this.bottomY - this.markHeight || y > this.topY + this.markHeight) continue;
             this.gfx.rect(-this.markWidth / 2, y - this.markHeight / 2, this.markWidth, this.markHeight);
-            this.gfx.fill();
         }
+        this.gfx.fill();
     }
 }

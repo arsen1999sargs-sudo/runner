@@ -6,10 +6,12 @@ const { spawn } = require('child_process');
 const path = require('path');
 
 const PORT = 8123;
-const URL = `http://127.0.0.1:${PORT}/runner/`;
+// Optional CLI arg: a live URL to test instead of the local subpath server.
+const LIVE = process.argv[2];
+const URL = LIVE || `http://127.0.0.1:${PORT}/runner/`;
 
 (async () => {
-  const server = spawn(process.execPath, [path.join(__dirname, 'serve-sub.js')], {
+  const server = LIVE ? null : spawn(process.execPath, [path.join(__dirname, 'serve-sub.js')], {
     env: { ...process.env, PORT: String(PORT) }, stdio: 'inherit',
   });
   await new Promise(r => setTimeout(r, 700));
@@ -67,6 +69,6 @@ const URL = `http://127.0.0.1:${PORT}/runner/`;
   console.log('=================================\n');
 
   await browser.close();
-  server.kill();
+  if (server) server.kill();
   process.exit(booted ? 0 : 1);
 })();

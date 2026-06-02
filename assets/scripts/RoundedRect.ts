@@ -43,6 +43,8 @@ export class RoundedRect extends Component {
     linkUrl: string = 'https://example.com/';
 
     private gfx: Graphics | null = null;
+    private lastW: number = -1;
+    private lastH: number = -1;
 
     onLoad() {
         this.ensureGraphics();
@@ -65,7 +67,14 @@ export class RoundedRect extends Component {
     }
 
     update() {
-        // перерисовываем когда меняется размер контейнера
+        // Перерисовываем ТОЛЬКО когда реально изменился размер контейнера.
+        // Раньше redraw() звался каждый кадр и рисовал градиент в 48 полосок (Graphics) —
+        // это сильно роняло FPS, особенно при нескольких таких узлах. Теперь — по факту изменения.
+        const ui = this.getComponent(UITransform);
+        if (!ui) return;
+        const w = ui.contentSize.width, h = ui.contentSize.height;
+        if (w === this.lastW && h === this.lastH) return;
+        this.lastW = w; this.lastH = h;
         this.redraw();
     }
 

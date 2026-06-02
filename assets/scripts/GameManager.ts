@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Label, Sprite, director, Color, CCFloat, tween, Vec3 } from 'cc';
+import { _decorator, Component, Node, Label, Sprite, director, Color, CCFloat, tween, Tween, Vec3, UITransform } from 'cc';
 import { AudioManager } from './AudioManager';
 import { Responsive } from './Responsive';
 const { ccclass, property } = _decorator;
@@ -52,6 +52,7 @@ export class GameManager extends Component {
     start() {
         this.setState(GameState.IDLE);
         this.updateHeartsUI();
+        this.setupEarningsFit();   // один раз: SHRINK + ширина под рамку + менее жирный шрифт
         this.updateEarningsUI();
         this.syncScrollSpeeds();
     }
@@ -86,13 +87,23 @@ export class GameManager extends Component {
         findComp('RoadScroller').forEach((c) => { c.speed = coinSpeed; });
     }
 
+    // Множитель «пульса» счётчика. Под него зарезервирована ширина текста в setupEarningsFit,
+    // чтобы число НЕ вылезало за рамку даже на пике пульса (в момент изменения баланса).
+    private readonly EARN_PULSE = 1.15;
+
     /** Лёгкий «пульс» счётчика $ при прилёте монеты. */
     public pulseEarnings() {
         const n = this.earningsLabel ? this.earningsLabel.node : null;
         if (!n) return;
-        const b = n.scale.clone();
-        tween(n).to(0.08, { scale: new Vec3(b.x * 1.3, b.y * 1.3, b.z) })
-                .to(0.12, { scale: b })
+        const k = this.EARN_PULSE;
+        // Останавливаем предыдущий пульс и стартуем строго от базы (1,1,1). Иначе при серии
+        // быстрых начислений (сбор последней дуги монет на финише) пульсы накладываются: база
+        // захватывается уже увеличенной, пики каскадно складываются (>×k) и число раздувается
+        // за рамку. Сброс к базе держит пик ровно ×k — под него зарезервирована ширина текста.
+        Tween.stopAllByTarget(n);
+        n.setScale(1, 1, 1);
+        tween(n).to(0.08, { scale: new Vec3(k, k, 1) })
+                .to(0.12, { scale: new Vec3(1, 1, 1) })
                 .start();
     }
 
@@ -212,8 +223,38 @@ export class GameManager extends Component {
             // Целые числа без .00, дроби с точностью 2
             const v = this.earnings;
             const isWhole = Math.floor(v) === v;
+            // ширина лейбла зафиксирована + overflow=SHRINK (см. setupEarningsFit),
+            // поэтому движок сам вписывает число в рамку — здесь только текст.
             this.earningsLabel.string = `$${isWhole ? v.toFixed(0) : v.toFixed(2)}`;
         }
+    }
+
+    private earningsFitDone = false;
+
+    /**
+     * Настройка счётчика $ ОДИН раз. Фиксируем ширину лейбла = свободное место внутри
+     * рамки PayPal и включаем overflow=SHRINK — движок сам вписывает ЛЮБОЕ число в рамку
+     * при любом системном шрифте (не зависит от ширины шрифта/ориентации; раньше длинное
+     * число $1000+ вылезало за рамку). Заодно делаем шрифт менее жирным.
+     */
+    private setupEarningsFit() {
+        const lbl = this.earningsLabel;
+        if (!lbl || this.earningsFitDone) return;
+        this.earningsFitDone = true;
+        lbl.isBold = false;                       // менее жирный
+        lbl.overflow = Label.Overflow.SHRINK;     // движок вписывает текст в ширину узла
+        // свободная ширина под число = от позиции лейбла до правого края рамки (с паддингом)
+        const panel = lbl.node.parent;
+        const icon = panel ? panel.getChildByName('PayPalIcon') : null;
+        const fui = icon ? icon.getComponent(UITransform) : null;
+        const halfFrame = fui ? fui.contentSize.width / 2 : 70;
+        const pad = 8;
+        // ширина у самого края рамки (пик пульса) — и делим на множитель пульса, чтобы в
+        // покое текст был уже, а на пике ×EARN_PULSE как раз доходил до края, не вылезая.
+        const peakW = (halfFrame - pad - lbl.node.position.x) * 2;
+        const availW = Math.max(20, peakW / this.EARN_PULSE);
+        const ui = lbl.node.getComponent(UITransform);
+        if (ui) ui.setContentSize(availW, ui.contentSize.height || lbl.fontSize);
     }
 
     public registerStateChange(cb: (state: GameState) => void) {
