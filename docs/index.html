@@ -83,8 +83,21 @@
     var SP = window.HTMLScriptElement && window.HTMLScriptElement.prototype; if(!SP) return;
     var sd = Object.getOwnPropertyDescriptor(SP,'src'); if(!sd||!sd.set) return;
     Object.defineProperty(SP,'src',{ configurable:true, enumerable:true,
-      get:function(){ return sd.get.call(this); },
-      set:function(v){ var k=find(v); var r=k?F[k]:null; sd.set.call(this, r ? blobURL(r) : v); }
+      // getter returns the ORIGINAL url the engine set (so Cocos derives the bundle base correctly).
+      get:function(){ return this.__os !== undefined ? this.__os : sd.get.call(this); },
+      set:function(v){
+        var k = find(v);
+        if (k && F[k]){
+          // Mapped asset-bundle index.js. Its modules are pre-registered at startup
+          // (see overrideScript), so the <script> just needs to fire onload WITHOUT a
+          // 404 — point it at an empty data URL. Works on any host path (root/subpath/
+          // file://): Cocos takes the onload path and uses the pre-registered modules.
+          this.__os = v;
+          sd.set.call(this, 'data:text/javascript,');
+        } else {
+          sd.set.call(this, v); // unmapped (excluded spine) -> network (harmless 404)
+        }
+      }
     });
   })();
 })();
@@ -230,11 +243,17 @@ canvas {
     }
     return orig.apply(this, arguments);
   };
-  // No pre-registration: asset-bundle index.js files are loaded by Cocos via a real
-  // <script> tag, which the script-src interceptor serves from the map as a blob URL.
-  // That lets Cocos run its normal bundle setup (so the start scene loads) on ANY host
-  // path. Pre-registering them here would make Cocos think the bundle is already loaded
-  // and skip that setup -> the scene never loads on a subpath.
+  // Pre-register bundle modules at startup. Together with the <script src> interceptor
+  // (which makes bundle index.js "load" via an empty data: URL — no 404), Cocos finds
+  // these modules already registered and boots on ANY host path (root, github.io/runner/
+  // subpath, or file://).
+  try {
+    Object.keys(window.__F__).forEach(function(k){
+      if (/assets\/[^/]+\/index\.js$/.test(k)) {
+        try { (0, eval)(window.__F__[k].text + '\n//# sourceURL=' + k); } catch(e){ console.error('preload', k, e && e.message); }
+      }
+    });
+  } catch(e){}
 })();
 </script>
 
